@@ -1,0 +1,139 @@
+import os
+import time
+import shutil
+import torch
+import numpy as np
+from .metrics import accuracy
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+def adjust_learning_rate(optimizer, epoch, args):
+    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    lr_steps = args.lr_steps
+    decay = 0.1 ** (sum(epoch >= np.array(lr_steps)))
+    lr = args.lr * decay
+    decay = args.weight_decay
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr * param_group['lr_mult']
+        param_group['weight_decay'] = decay * param_group['decay_mult']
+
+
+def save_checkpoint(state, epoch, is_best, args):
+    filename = os.path.join(args.checkpoints, 'epoch_{:d}_.pth'.format(epoch + 1))
+    torch.save(state, filename)
+    if is_best:
+        best_name = os.path.join(args.checkpoints, 'best_{:s}_{:s}.pth'.format(args.dataset, args.modality))
+        shutil.copyfile(filename, best_name)
+
+
+def validate(val_loader, model, criterion):
+    training = model.training
+    losses = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+    # switch to evaluate mode
+    model.eval()
+
+    with torch.no_grad():
+        for i, (img, target) in enumerate(val_loader):
+            img, target = img.cuda(), target.cuda()
+
+            # compute output
+            output = model(img)
+            loss = criterion(output, target)
+
+            # measure accuracy and record loss
+            prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
+            losses.update(loss.item(), img.size(0))
+            top1.update(prec1.item(), 1)
+            top5.update(prec5.item(), 1)
+
+    print(('Testing Results: Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f} Loss {loss.avg:.5f}'
+           .format(top1=top1, top5=top5, loss=losses)))
+    model.train(training)
+
+    return top1.avg, top5.avg, losses.avg
+
+
+def train(loaders, model, criterion, optimizer, logger, args):
+    losses = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    if args.partialbn:
+        model.module.partialBN(True)
+    else:
+        model.module.partialBN(False)
+
+    # switch to train mode
+    model.train()
+    train_loader, test_loader = loaders
+    cur_iter = 0
+    best_top1 = 0
+    start = time.time()
+    for epoch in range(args.epochs):
+        for i, (img, target) in enumerate(train_loader):
+            data_time.update(time.time() - start)
+            img, target = img.cuda(), target.cuda()
+
+            # compute output
+            output = model(img)
+            loss = criterion(output, target)
+
+            # measure accuracy and record loss
+            prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
+            losses.update(loss.item(), img.size(0))
+            top1.update(prec1.item(), img.size(0))
+            top5.update(prec5.item(), img.size(0))
+
+            # compute gradient and do SGD step
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()            
+
+            batch_time.update(time.time() - start)
+            start = time.time()
+
+            cur_iter += 1
+            if cur_iter % 10 == 0:
+                base_lr = optimizer.param_groups[-1]["lr"]
+                print(('Epoch: [{0}][{1}/{2}], lr: {lr:.5f}\t'
+                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                       'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                       'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                       'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                       'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                        epoch, i, len(train_loader), batch_time=batch_time,
+                        data_time=data_time, loss=losses, top1=top1, top5=top5, lr=base_lr)))
+                test_top1, test_top5, test_loss = validate(test_loader, model, criterion)
+                if logger is not None:
+                    logger.log({'Training': {'loss': losses.avg,
+                                             'Top-1 Accuracy': top1.avg,
+                                             'Top-5 Accuracy': top5.avg}})
+                    logger.log({'Test': {'loss': test_loss,
+                                         'Top-1 Accuracy': test_top1,
+                                         'Top-5 Accuracy': test_top5}})
+
+        test_top1, test_top5, test_loss = validate(test_loader, model, criterion)
+        is_best = test_top1 > best_top1
+        best_top1 = max(best_top1, test_top1)
+        save_checkpoint(model.state_dict(), epoch, is_best, args)
