@@ -28,9 +28,10 @@ def summarize_dataset(data_root):
     repeat_list = [int(item[13:16]) for item in filenames]
     act_list = [int(item[17:]) for item in filenames]
     frame_list = [len(os.listdir(os.path.join(data_root, item))) for item in filenames]
+    label_list = [item-1 for item in act_list]
     df = pd.DataFrame({"filename": filenames, "view_id": view_list, "camera_id": cam_list,
                        "subject_id": sub_list, "repeat_id": repeat_list, "action_id": act_list,
-                       "frame_num": frame_list})
+                       "label": label_list, "frame_num": frame_list})
     return df
 
 

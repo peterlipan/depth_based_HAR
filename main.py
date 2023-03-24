@@ -23,12 +23,12 @@ def main(args, wandb_logger):
     train_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_train,
                                num_segments=args.num_segments, new_length=data_length,
                                modality=args.modality, image_tmpl=args.image_tmpl,
-                               transform=transforms.train_transforms)
+                               transform=transforms.train_transforms, test_mode=False)
 
     test_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_test,
                               num_segments=args.num_segments, new_length=data_length,
                               modality=args.modality, image_tmpl=args.image_tmpl,
-                              transform=transforms.test_transforms)
+                              transform=transforms.test_transforms, test_mode=True)
     num_class = train_dataset.num_class
 
     # init model
