@@ -88,7 +88,7 @@ if __name__ == '__main__':
             config[k] = v
 
         logger = wandb.init(
-            project="baseline_%s_%s" % (args.dataset, args.modality),
+            project="%s_%s_%s" % (args.dataset, args.modality, args.task),
             notes="Sensys 2023 depth HAR",
             tags=["baseline", "Sensys2023", "depth camera", "human action recognition"],
             config=config

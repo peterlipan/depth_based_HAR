@@ -1,0 +1,29 @@
+# distributed training
+workers: 8
+gpus: "0,1,2,3"
+
+# Dataset & paths
+data_path: "/mnt/ssd/li/NTU_RGBD_60/nturgb+d_depth_masked"
+csv_file_train: "./split/NTU_RGBD_60/cv_train.csv"
+csv_file_test: "./split/NTU_RGBD_60/cv_test.csv"
+checkpoints: "./checkpoints"
+dataset: "NTU_RGBD_60"
+task: "Cross-View"
+modality: "depth"
+image_tmpl: "MDepth-{:08d}.png"
+img_size: 224
+seed: 42
+
+# model
+backbone: "resnet50"
+num_segments: 3
+
+# optimization
+epochs: 45
+batch_size: 128
+dropout: 0.5
+lr: 0.001
+lr_steps: [20, 40]
+momentum: 0.9
+weight_decay: 5.0e-4
+partialbn: True

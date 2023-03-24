@@ -18,7 +18,6 @@ class TSN(nn.Module):
         self.dropout = dropout
         self.num_class = num_class
 
-
         self.new_length = new_length
 
         print(("""
@@ -58,6 +57,7 @@ TSN Configurations:
         model = getattr(torchvision.models, backbone)(pretrained=True)
         std = 0.001
 
+        # Reset the last linear layer and dropout
         if 'shufflenet' in backbone or 'resnet' in backbone:
             feature_dim = model.fc.in_features
             if self.dropout == 0:
