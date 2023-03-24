@@ -1,1 +1,1 @@
-# Human Action Recognition based on depth cameras
+# Baseline: TSN framework + depth modality + NTU 60 (CS+CV)
