@@ -1,1 +1,1 @@
-# Baseline: TSN framework + depth modality + NTU 60 (CS+CV)
+# Ours: TSN framework + New modality (Depth gradient) + NTU 60 (CS and CV)
