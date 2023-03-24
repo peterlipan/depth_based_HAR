@@ -89,7 +89,7 @@ def train(loaders, model, criterion, optimizer, logger, args):
                                          'Sensitivity': test_sens,
                                          'Specificity': test_spec}})
 
-        test_top1, test_top5, test_loss = validate(test_loader, model, criterion)
-        is_best = test_top1 > best_top1
-        best_top1 = max(best_top1, test_top1)
+        test_acc, test_f1, test_auc, test_bac, test_sens, test_spec, test_loss = validate(test_loader, model, criterion)
+        is_best = test_acc > best_top1
+        best_top1 = max(best_top1, test_acc)
         save_checkpoint(model.state_dict(), epoch, is_best, args)
