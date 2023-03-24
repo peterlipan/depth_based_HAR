@@ -66,7 +66,7 @@ def train(loaders, model, criterion, optimizer, logger, args):
             start = time.time()
 
             cur_iter += 1
-            if cur_iter % 10 == 0:
+            if cur_iter % 30 == 0:
                 base_lr = optimizer.param_groups[-1]["lr"]
                 print(('Epoch: [{0}][{1}/{2}], lr: {lr:.5f}\t'
                        'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'

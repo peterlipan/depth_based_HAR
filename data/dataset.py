@@ -24,7 +24,7 @@ class VideoRecord(object):
 
     @property
     def label(self):
-        return int(self._data['action_id'] - 1)
+        return int(self._data['label'])
 
 
 class TSNDataSet(data.Dataset):
