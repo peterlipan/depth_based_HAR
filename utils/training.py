@@ -3,26 +3,7 @@ import time
 import shutil
 import torch
 import numpy as np
-from .metrics import accuracy
-
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
+from .metrics import accuracy, validate, AverageMeter
 
 
 def adjust_learning_rate(optimizer, epoch, args):
@@ -42,35 +23,6 @@ def save_checkpoint(state, epoch, is_best, args):
     if is_best:
         best_name = os.path.join(args.checkpoints, 'best_{:s}_{:s}.pth'.format(args.dataset, args.modality))
         shutil.copyfile(filename, best_name)
-
-
-def validate(val_loader, model, criterion):
-    training = model.training
-    losses = AverageMeter()
-    top1 = AverageMeter()
-    top5 = AverageMeter()
-    # switch to evaluate mode
-    model.eval()
-
-    with torch.no_grad():
-        for i, (img, target) in enumerate(val_loader):
-            img, target = img.cuda(), target.cuda()
-
-            # compute output
-            output = model(img)
-            loss = criterion(output, target)
-
-            # measure accuracy and record loss
-            prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-            losses.update(loss.item(), img.size(0))
-            top1.update(prec1.item(), 1)
-            top5.update(prec5.item(), 1)
-
-    print(('Testing Results: Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f} Loss {loss.avg:.5f}'
-           .format(top1=top1, top5=top5, loss=losses)))
-    model.train(training)
-
-    return top1.avg, top5.avg, losses.avg
 
 
 def train(loaders, model, criterion, optimizer, logger, args):
@@ -124,14 +76,18 @@ def train(loaders, model, criterion, optimizer, logger, args):
                        'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                         epoch, i, len(train_loader), batch_time=batch_time,
                         data_time=data_time, loss=losses, top1=top1, top5=top5, lr=base_lr)))
-                test_top1, test_top5, test_loss = validate(test_loader, model, criterion)
+                test_acc, test_f1, test_auc, test_bac, test_sens, test_spec, test_loss = validate(test_loader, model, criterion)
                 if logger is not None:
                     logger.log({'Training': {'loss': losses.avg,
                                              'Top-1 Accuracy': top1.avg,
                                              'Top-5 Accuracy': top5.avg}})
                     logger.log({'Test': {'loss': test_loss,
-                                         'Top-1 Accuracy': test_top1,
-                                         'Top-5 Accuracy': test_top5}})
+                                         'Accuracy': test_acc,
+                                         'F1 score': test_f1,
+                                         'AUC': test_auc,
+                                         'BAC': test_bac,
+                                         'Sensitivity': test_sens,
+                                         'Specificity': test_spec}})
 
         test_top1, test_top5, test_loss = validate(test_loader, model, criterion)
         is_best = test_top1 > best_top1
