@@ -8,16 +8,12 @@ from torch.nn.init import normal_, constant_
 class TSN(nn.Module):
     def __init__(self, num_class, num_segments, modality,
                  backbone='resnet50', new_length=None,
-                 before_softmax=True,
                  dropout=0.8, partial_bn=True):
         super(TSN, self).__init__()
         self.modality = modality
         self.num_segments = num_segments
-        self.reshape = True
-        self.before_softmax = before_softmax
         self.dropout = dropout
         self.num_class = num_class
-
         self.new_length = new_length
 
         print(("""
@@ -41,9 +37,6 @@ TSN Configurations:
             print("Done. RGBDiff model ready.")
 
         self.consensus = AvgConsensus()
-
-        if not self.before_softmax:
-            self.softmax = nn.Softmax()
 
         self._enable_pbn = partial_bn
         if partial_bn:
@@ -171,11 +164,8 @@ TSN Configurations:
         base_out = self.backbone(input.view((-1, sample_len) + input.size()[-2:]))
         # base_out [NxT, K (num_class)]
 
-        if not self.before_softmax:
-            base_out = self.softmax(base_out)
-        if self.reshape:
-            base_out = base_out.view((-1, self.num_segments) + base_out.size()[1:])
-            # base_out after reshape [N, T, K (num_class)]
+        base_out = base_out.view((-1, self.num_segments) + base_out.size()[1:])
+        # base_out after reshape [N, T, K (num_class)]
 
         output = self.consensus(base_out, dim=1)
         # output [N, K (num_class)]

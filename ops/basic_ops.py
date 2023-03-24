@@ -3,7 +3,6 @@ import torch.nn as nn
 
 
 class AvgConsensus(nn.Module):
-
     def __init__(self):
         super(AvgConsensus, self).__init__()
         pass
