@@ -10,7 +10,7 @@ checkpoints: "./checkpoints"
 dataset: "NTU_RGBD_60"
 task: "Cross-Subject"
 modality: "depth"
-image_tmpl: "MDepth-{:08d}.png"
+image_tmpl: "MDepth-{:08d}.ppm"
 img_size: 224
 seed: 42
 

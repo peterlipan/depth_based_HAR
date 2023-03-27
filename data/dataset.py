@@ -30,7 +30,7 @@ class VideoRecord(object):
 class TSNDataSet(data.Dataset):
     def __init__(self, data_path, csv_path,
                  num_segments=3, new_length=1, modality='depth',
-                 image_tmpl='MDepth-{:08d}.png', transform=None,
+                 image_tmpl='MDepth-{:08d}.ppm', transform=None,
                  test_mode=False, start_index=1):
 
         self.data_path = data_path
