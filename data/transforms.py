@@ -1,10 +1,12 @@
-import torchvision.transforms as T
+import cv2
 import random
-from PIL import Image, ImageOps
 import numpy as np
 import numbers
 import math
 import torch
+import albumentations as A
+from PIL import Image, ImageOps
+import torchvision.transforms as T
 
 
 class GroupRandomCrop(object):
@@ -294,13 +296,25 @@ class IdentityTransform(object):
         return data
 
 
+def cal_our_modality(image, **kwargs):
+    grad_x = cv2.Sobel(image, cv2.CV_32F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(image, cv2.CV_32F, 0, 1, ksize=3)
+    grad_mag = np.sqrt(grad_x ** 2 + grad_y ** 2)
+    grad_mag_norm = (grad_mag - np.min(grad_mag)) / (np.max(grad_mag) - np.min(grad_mag))
+
+
+
+
 class Transforms:
     def __init__(self, modality, input_size):
+        self.modality = modality
+        self.input_size = input_size
+
         self.train_transforms = None
 
         # same normalization for ImageNet pretrained models
         normalize = GroupNormalize([0.485, 0.456, 0.406],
-                                [0.229, 0.224, 0.225])
+                                   [0.229, 0.224, 0.225])
         if modality == 'depthDiff':
             normalize = IdentityTransform()
 
@@ -309,14 +323,33 @@ class Transforms:
         self.test_transforms = T.Compose([GroupScale(scale_size), GroupCenterCrop(input_size),
                                           Stack(roll=False), ToTorchFormatTensor(div=True), normalize])
 
-        if modality == 'depth':
+        self.depth_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
+                                           GroupRandomHorizontalFlip(is_flow=False), Stack(roll=False),
+                                           ToTorchFormatTensor(div=True), normalize])
+        self.augmentations = A.Compose(
+            [
+                A.Resize(height=input_size, width=input_size),
+                A.HorizontalFlip(p=0.6),
+                A.VerticalFlip(p=0.6),
+                A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.2, rotate_limit=45, p=0.6),
+                A.GridDropout(p=0.2),
+            ]
+        )
+
+        if modality == 'RGB':
             self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
                                                GroupRandomHorizontalFlip(is_flow=False), Stack(roll=False),
                                                ToTorchFormatTensor(div=True), normalize])
+
         elif modality == 'depthDiff':
             self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75]),
                                                GroupRandomHorizontalFlip(is_flow=False), Stack(roll=False),
                                                ToTorchFormatTensor(div=True), normalize])
+
+    def __call__(self, imgs):
+        # apply the augmentations on the first image
+
+        return imgs
 
 
 if __name__ == "__main__":
@@ -324,7 +357,8 @@ if __name__ == "__main__":
     train_transforms = transforms.train_transforms
     test_transforms = transforms.test_transforms
 
-    im = Image.open('/mnt/ssd/li/NTU_RGBD_60/nturgb+d_depth_masked/S001C001P001R001A001/MDepth-00000001.png').convert('RGB')
+    im = Image.open('/mnt/ssd/li/NTU_RGBD_60/nturgb+d_depth_masked/S001C001P001R001A001/MDepth-00000001.png').convert(
+        'RGB')
     print('raw: ', np.array(im).shape)
 
     color_group = [im] * 3
