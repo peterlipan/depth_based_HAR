@@ -2,7 +2,9 @@ import os
 import os.path
 import pandas as pd
 from PIL import Image
+import numpy as np
 import torch.utils.data as data
+from skimage import io
 from .samplers import SegmentedSample
 
 
@@ -28,7 +30,7 @@ class VideoRecord(object):
 class TSNDataSet(data.Dataset):
     def __init__(self, data_path, csv_path,
                  num_segments=3, new_length=1, modality='depth',
-                 image_tmpl='MDepth-{:08d}.png', transform=None,
+                 image_tmpl='MDepth-{:08d}.ppm', transform=None,
                  test_mode=False, start_index=1):
 
         self.data_path = data_path
@@ -50,7 +52,10 @@ class TSNDataSet(data.Dataset):
 
     def _load_image(self, directory, idx):
         if self.modality == 'depth' or self.modality == 'depthDiff':
-            return [Image.open(os.path.join(directory, self.image_tmpl.format(idx))).convert('RGB')]
+            coll = io.ImageCollection(os.path.join(directory, self.image_tmpl.format(idx)))
+            # rescale and to numpy float array
+            arr = (np.squeeze(np.array(coll)) * 255. / 65535.).astype(np.uint8)
+            return [Image.fromarray(arr).convert('RGB')]
         elif self.modality == 'Flow':
             x_img = Image.open(os.path.join(directory, self.image_tmpl.format('x', idx))).convert('L')
             y_img = Image.open(os.path.join(directory, self.image_tmpl.format('y', idx))).convert('L')

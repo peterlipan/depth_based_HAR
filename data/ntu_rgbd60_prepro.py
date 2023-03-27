@@ -1,4 +1,5 @@
 import os
+import glob
 import pandas as pd
 
 
@@ -62,6 +63,16 @@ def cross_eva_split(log_file):
     return xsub_train_df, xview_train_df, xsub_test_df, xview_test_df
 
 
+def png2ppm(path):
+    """
+    To transform the original .png images to .ppm files.
+    The raw depth is captured as uint16 format. Directly reading the .png will return uint8 images.
+    """
+    for filename in glob.iglob(os.path.join(path, '**', '*.png'), recursive=True):
+        new_filename = os.path.splitext(filename)[0] + '.ppm'
+        os.rename(filename, new_filename)
+
+
 if __name__ == '__main__':
     root = "/mnt/ssd/li/NTU_RGBD_60/nturgb+d_depth_masked"
     split_root = '../split/NTU_RGBD_60'
@@ -77,3 +88,5 @@ if __name__ == '__main__':
 
     cv_train.to_csv(os.path.join(split_root, "cv_train.csv"), index=False)
     cv_test.to_csv(os.path.join(split_root, "cv_test.csv"), index=False)
+
+    png2ppm(root)
