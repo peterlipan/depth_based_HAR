@@ -9,7 +9,7 @@ csv_file_test: "./split/NTU_RGBD_60/cv_test.csv"
 checkpoints: "./checkpoints"
 dataset: "NTU_RGBD_60"
 task: "Cross-View"
-modality: "depth"
+modality: "depthDiff"
 image_tmpl: "MDepth-{:08d}.ppm"
 img_size: 224
 seed: 42

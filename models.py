@@ -29,11 +29,11 @@ TSN Configurations:
 
         if self.modality == 'Flow':
             print("Converting the ImageNet model to a flow init model")
-            self.base_model = self._construct_flow_model(self.base_model)
+            self.backbone = self._construct_flow_model(self.backbone)
             print("Done. Flow model ready...")
         elif self.modality == 'depthDiff':
             print("Converting the ImageNet model to RGB+Diff init model")
-            self.base_model = self._construct_diff_model(self.base_model)
+            self.backbone = self._construct_diff_model(self.backbone)
             print("Done. RGBDiff model ready.")
 
         self.consensus = AvgConsensus()
