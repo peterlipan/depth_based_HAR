@@ -181,11 +181,11 @@ TSN Configurations:
 
         return new_data
 
-    def _construct_flow_model(self, base_model):
+    def _construct_flow_model(self, backbone):
         # modify the convolution layers
         # Torch models are usually defined in a hierarchical way.
         # nn.modules.children() return all sub modules in a DFS manner
-        modules = list(self.base_model.modules())
+        modules = list(self.backbone.modules())
         first_conv_idx = list(filter(lambda x: isinstance(modules[x], nn.Conv2d), list(range(len(modules)))))[0]
         conv_layer = modules[first_conv_idx]
         container = modules[first_conv_idx - 1]
@@ -206,13 +206,13 @@ TSN Configurations:
 
         # replace the first convlution layer
         setattr(container, layer_name, new_conv)
-        return base_model
+        return backbone
 
-    def _construct_diff_model(self, base_model, keep_rgb=False):
+    def _construct_diff_model(self, backbone, keep_rgb=False):
         # modify the convolution layers
         # Torch models are usually defined in a hierarchical way.
         # nn.modules.children() return all sub modules in a DFS manner
-        modules = list(self.base_model.modules())
+        modules = list(self.backbone.modules())
         first_conv_idx = list(filter(lambda x: isinstance(modules[x], nn.Conv2d), list(range(len(modules)))))[0]
         conv_layer = modules[first_conv_idx]
         container = modules[first_conv_idx - 1]
@@ -240,4 +240,4 @@ TSN Configurations:
 
         # replace the first convolution layer
         setattr(container, layer_name, new_conv)
-        return base_model
+        return backbone
