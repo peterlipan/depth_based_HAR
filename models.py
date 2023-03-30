@@ -27,15 +27,6 @@ TSN Configurations:
 
         self._prepare_backbone(backbone, num_class)
 
-        if self.modality == 'Flow':
-            print("Converting the ImageNet model to a flow init model")
-            self.backbone = self._construct_flow_model(self.backbone)
-            print("Done. Flow model ready...")
-        elif self.modality == 'depthDiff':
-            print("Converting the ImageNet model to RGB+Diff init model")
-            self.backbone = self._construct_diff_model(self.backbone)
-            print("Done. RGBDiff model ready.")
-
         self.consensus = AvgConsensus()
 
         self._enable_pbn = partial_bn
