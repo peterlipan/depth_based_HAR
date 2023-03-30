@@ -27,6 +27,9 @@ TSN Configurations:
 
         self._prepare_backbone(backbone, num_class)
 
+        if self.modality == 'depthDiff':
+            self.backbone = self._construct_diff_model(self.backbone)
+
         self.consensus = AvgConsensus()
 
         self._enable_pbn = partial_bn
