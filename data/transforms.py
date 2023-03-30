@@ -208,7 +208,7 @@ class GroupMultiScaleCrop(object):
 
 class GroupRandomSizedCrop(object):
     """Random crop the given PIL.Image to a random size of (0.08 to 1.0) of the original size
-    and and a random aspect ratio of 3/4 to 4/3 of the original aspect ratio
+    and a random aspect ratio of 3/4 to 4/3 of the original aspect ratio
     This is popularly used to train the Inception networks
     size: size of the smaller edge
     interpolation: Default: PIL.Image.BILINEAR
@@ -296,13 +296,12 @@ class IdentityTransform(object):
         return data
 
 
-def cal_our_modality(image, **kwargs):
+def depth2gradient(image, **kwargs):
     grad_x = cv2.Sobel(image, cv2.CV_32F, 1, 0, ksize=3)
     grad_y = cv2.Sobel(image, cv2.CV_32F, 0, 1, ksize=3)
     grad_mag = np.sqrt(grad_x ** 2 + grad_y ** 2)
     grad_mag_norm = (grad_mag - np.min(grad_mag)) / (np.max(grad_mag) - np.min(grad_mag))
-
-
+    return grad_mag_norm
 
 
 class Transforms:
@@ -323,9 +322,6 @@ class Transforms:
         self.test_transforms = T.Compose([GroupScale(scale_size), GroupCenterCrop(input_size),
                                           Stack(roll=False), ToTorchFormatTensor(div=True), normalize])
 
-        self.depth_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
-                                           GroupRandomHorizontalFlip(is_flow=False), Stack(roll=False),
-                                           ToTorchFormatTensor(div=True), normalize])
         self.augmentations = A.Compose(
             [
                 A.Resize(height=input_size, width=input_size),
@@ -335,6 +331,11 @@ class Transforms:
                 A.GridDropout(p=0.2),
             ]
         )
+
+        if modality == 'depth':
+            self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
+                                               GroupRandomHorizontalFlip(is_flow=False), Stack(roll=False),
+                                               ToTorchFormatTensor(div=True), normalize])
 
         if modality == 'RGB':
             self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
@@ -348,7 +349,6 @@ class Transforms:
 
     def __call__(self, imgs):
         # apply the augmentations on the first image
-
         return imgs
 
 
