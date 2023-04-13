@@ -146,16 +146,16 @@ TSN Configurations:
              'name': "BN scale/shift"},
         ]
 
-    def forward(self, input):
-        # input: Tensor [N, TxC, H, W]
+    def forward(self, image):
+        # input: Tensor [N, TxCxL, H, W] (L=1 for depth)
         sample_len = (3 if self.modality == "depth" else 2) * self.new_length
 
         if self.modality == 'depthDiff':
             sample_len = 3 * self.new_length
-            input = self._get_diff(input)
+            image = self._get_diff(image)
 
-        # input.view(...) [NxT, C, H, W]
-        base_out = self.backbone(input.view((-1, sample_len) + input.size()[-2:]))
+        # input.view(...) [NxT, CxL, H, W]
+        base_out = self.backbone(image.view((-1, sample_len) + image.size()[-2:]))
         # base_out [NxT, K (num_class)]
 
         base_out = base_out.view((-1, self.num_segments) + base_out.size()[1:])
@@ -165,9 +165,10 @@ TSN Configurations:
         # output [N, K (num_class)]
         return output
 
-    def _get_diff(self, input, keep_rgb=False):
-        input_c = 3 if self.modality in ["depth", "RGBDiff"] else 2
-        input_view = input.view((-1, self.num_segments, self.new_length + 1, input_c,) + input.size()[2:])
+    def _get_diff(self, image, keep_rgb=False):
+        input_c = 3 if self.modality in ["depth", "depthDiff"] else 2
+        # input: [N, TxCxL, H, W] -> input_view: [N, T, L, C, H, W]
+        input_view = image.view((-1, self.num_segments, self.new_length + 1, input_c,) + image.size()[2:])
         if keep_rgb:
             new_data = input_view.clone()
         else:
@@ -180,33 +181,6 @@ TSN Configurations:
                 new_data[:, :, x - 1, :, :, :] = input_view[:, :, x, :, :, :] - input_view[:, :, x - 1, :, :, :]
 
         return new_data
-
-    def _construct_flow_model(self, backbone):
-        # modify the convolution layers
-        # Torch models are usually defined in a hierarchical way.
-        # nn.modules.children() return all sub modules in a DFS manner
-        modules = list(self.backbone.modules())
-        first_conv_idx = list(filter(lambda x: isinstance(modules[x], nn.Conv2d), list(range(len(modules)))))[0]
-        conv_layer = modules[first_conv_idx]
-        container = modules[first_conv_idx - 1]
-
-        # modify parameters, assume the first blob contains the convolution kernels
-        params = [x.clone() for x in conv_layer.parameters()]
-        kernel_size = params[0].size()
-        new_kernel_size = kernel_size[:1] + (2 * self.new_length,) + kernel_size[2:]
-        new_kernels = params[0].data.mean(dim=1, keepdim=True).expand(new_kernel_size).contiguous()
-
-        new_conv = nn.Conv2d(2 * self.new_length, conv_layer.out_channels,
-                             conv_layer.kernel_size, conv_layer.stride, conv_layer.padding,
-                             bias=True if len(params) == 2 else False)
-        new_conv.weight.data = new_kernels
-        if len(params) == 2:
-            new_conv.bias.data = params[1].data  # add bias if neccessary
-        layer_name = list(container.state_dict().keys())[0][:-7]  # remove .weight suffix to get the layer name
-
-        # replace the first convlution layer
-        setattr(container, layer_name, new_conv)
-        return backbone
 
     def _construct_diff_model(self, backbone, keep_rgb=False):
         # modify the convolution layers

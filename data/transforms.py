@@ -296,60 +296,75 @@ class IdentityTransform(object):
         return data
 
 
-def depth2gradient(image, **kwargs):
-    grad_x = cv2.Sobel(image, cv2.CV_32F, 1, 0, ksize=3)
-    grad_y = cv2.Sobel(image, cv2.CV_32F, 0, 1, ksize=3)
-    grad_mag = np.sqrt(grad_x ** 2 + grad_y ** 2)
-    grad_mag_norm = (grad_mag - np.min(grad_mag)) / (np.max(grad_mag) - np.min(grad_mag))
-    return grad_mag_norm
-
-
 class Transforms:
     def __init__(self, modality, input_size):
         self.modality = modality
         self.input_size = input_size
+        scale_size = 256
 
         self.train_transforms = None
 
         # same normalization for ImageNet pretrained models
         normalize = GroupNormalize([0.485, 0.456, 0.406],
                                    [0.229, 0.224, 0.225])
-        if modality == 'depthDiff':
+        if modality in ['depthDiff', 'm3d']:
             normalize = IdentityTransform()
-
-        scale_size = input_size * 232 // 224
 
         self.test_transforms = T.Compose([GroupScale(scale_size), GroupCenterCrop(input_size),
                                           Stack(roll=False), ToTorchFormatTensor(div=True), normalize])
 
         self.augmentations = A.Compose(
             [
-                A.Resize(height=input_size, width=input_size),
-                A.HorizontalFlip(p=0.6),
-                A.VerticalFlip(p=0.6),
+                A.Resize(height=scale_size, width=scale_size),
+                A.CenterCrop(height=input_size, width=input_size),
+                A.HorizontalFlip(p=0.5),
+                A.VerticalFlip(p=0.5),
                 A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.2, rotate_limit=45, p=0.6),
+                A.GaussNoise(p=0.4),
                 A.GridDropout(p=0.2),
             ]
         )
 
-        if modality == 'depth':
+        self.post_process = T.Compose([Stack(roll=False), ToTorchFormatTensor(div=True), normalize])
+
+        if modality in ['depth', 'depthDiff', 'gradient']:
             self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
                                                GroupRandomHorizontalFlip(is_flow=False), Stack(roll=False),
                                                ToTorchFormatTensor(div=True), normalize])
+        elif modality == 'm3d':
+            self.train_transforms = self.__call__
 
-        if modality == 'RGB':
-            self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
-                                               GroupRandomHorizontalFlip(is_flow=False), Stack(roll=False),
-                                               ToTorchFormatTensor(div=True), normalize])
+    @staticmethod
+    def _single_augmentation(img, augmentations=None, replay=None):
+        # apply augmentation on a single image
+        # return the augmented image and augmentation operations
+        img = np.array(img)
+        if replay is None:
+            aug = augmentations(image=img)
+            img_aug = aug['image']
+            replay = aug['replay']
+        else:
+            img_aug = A.ReplayCompose.replay(replay, image=img)['image']
 
-        elif modality == 'depthDiff':
-            self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75]),
-                                               GroupRandomHorizontalFlip(is_flow=False), Stack(roll=False),
-                                               ToTorchFormatTensor(div=True), normalize])
+        return img_aug, replay
 
-    def __call__(self, imgs):
-        # apply the augmentations on the first image
-        return imgs
+    def __call__(self, img_group, grad_group, replay=None):
+        # apply the same augmentations to image-gradient pairs
+        img_aug_group = []
+        grad_aug_group = []
+        _, replay = self._single_augmentation(img_group[0], augmentations=self.augmentations)
+        for img in img_group:
+            img_aug, _ = self._single_augmentation(img, replay=replay)
+            img_aug_group.append(img_aug)
+
+        for grad in grad_group:
+            grad_aug, _ = self._single_augmentation(grad, replay=replay)
+            grad_aug_group.append(grad_aug)
+
+        images = self.post_process(img_aug_group)
+        gradients = self.post_process(grad_aug_group)
+
+        return images, gradients
 
 
 if __name__ == "__main__":

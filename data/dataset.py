@@ -1,5 +1,5 @@
 import os
-import os.path
+import cv2
 import pandas as pd
 from PIL import Image
 import numpy as np
@@ -45,22 +45,27 @@ class TSNDataSet(data.Dataset):
         self.num_class = len(set(self.csv['action_id']))
         self.sampler = SegmentedSample(new_length, num_segments, test_mode, start_index)
 
-        if self.modality == 'depthDiff':
+        if self.modality in ['depthDiff', 'm3d']:
             self.new_length += 1  # Diff needs one more image to calculate diff
 
         self._parse_list()
 
-    def _load_image(self, directory, idx):
-        if self.modality == 'depth' or self.modality == 'depthDiff':
-            coll = io.ImageCollection(os.path.join(directory, self.image_tmpl.format(idx)))
-            # rescale and to numpy float array
-            arr = (np.squeeze(np.array(coll)) * 255. / 65535.).astype(np.uint8)
-            return [Image.fromarray(arr).convert('RGB')]
-        elif self.modality == 'Flow':
-            x_img = Image.open(os.path.join(directory, self.image_tmpl.format('x', idx))).convert('L')
-            y_img = Image.open(os.path.join(directory, self.image_tmpl.format('y', idx))).convert('L')
+    @staticmethod
+    def _cal_gradient_mag(img):
+        grad_x = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize=3)
+        grad_mag = np.sqrt(grad_x ** 2 + grad_y ** 2)
+        grad_mag_norm = (grad_mag - np.min(grad_mag)) / (np.max(grad_mag) - np.min(grad_mag))
+        return grad_mag_norm
 
-            return [x_img, y_img]
+    def _load_image(self, directory, idx):
+        coll = io.ImageCollection(os.path.join(directory, self.image_tmpl.format(idx)))
+        # rescale and to numpy float array
+        int8_img = (np.squeeze(np.array(coll)) / 65535. * 255.).astype(np.uint8)
+        cv2_img = cv2.cvtColor(int8_img, cv2.COLOR_GRAY2RGB)
+        gradient = self._cal_gradient_mag(cv2_img)
+
+        return [Image.fromarray(int8_img).convert('RGB')], gradient
 
     def _parse_list(self):
         self.video_list = [VideoRecord(self.csv.iloc[i], self.data_path) for i in range(self.data_num)]
@@ -75,11 +80,13 @@ class TSNDataSet(data.Dataset):
     def get(self, record, indices):
 
         images = list()
+        gradients = list()
         for seg_ind in indices:
             p = int(seg_ind)
             for i in range(self.new_length):
-                seg_imgs = self._load_image(record.path, p)
-                images.extend(seg_imgs)
+                img, grad = self._load_image(record.path, p)
+                images.extend(img)
+                gradients.extend(grad)
                 if p < record.num_frames:
                     p += 1
 

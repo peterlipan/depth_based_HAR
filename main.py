@@ -15,7 +15,7 @@ def main(args, wandb_logger):
     data_length = None
     if args.modality == 'depth':
         data_length = 1
-    elif args.modality in ['Flow', 'depthDiff', 'gradientSum']:
+    elif args.modality in ['depthDiff', 'm3d']:
         data_length = 5
 
     # define dataset
