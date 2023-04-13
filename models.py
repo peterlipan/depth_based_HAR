@@ -169,13 +169,18 @@ TSN Configurations:
         img_c = 3
         # input: [N, TxCxL, H, W] -> input_view: [N, T, L, C, H, W]
         img_view = image.view((-1, self.num_segments, self.new_length + 1, img_c,) + image.size()[2:])
-        grad_view = gradient.view((-1, self.num_segments, self.new_length + 1, img_c,) + gradient.size()[2:])[:, :, 1:, :, :, :]
+        if gradient is not None:
+            grad_view = gradient.view((-1, self.num_segments, self.new_length + 1,
+                                       img_c,) + gradient.size()[2:])[:, :, 1:, :, :, :]
 
         new_data = img_view[:, :, 1:, :, :, :].clone()
 
         for x in reversed(list(range(1, self.new_length + 1))):
-            new_data[:, :, x - 1, :, :, :] = img_view[:, :, x, :, :, :] - \
-                                             img_view[:, :, x - 1, :, :, :] + grad_view[:, :, x - 1, :, :, :]
+            if gradient is not None:
+                new_data[:, :, x - 1, :, :, :] = img_view[:, :, x, :, :, :] - \
+                                                 img_view[:, :, x - 1, :, :, :] + grad_view[:, :, x - 1, :, :, :]
+            else:
+                new_data[:, :, x - 1, :, :, :] = img_view[:, :, x, :, :, :] - img_view[:, :, x - 1, :, :, :]
 
         return new_data
 
