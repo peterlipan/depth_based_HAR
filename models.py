@@ -146,13 +146,13 @@ TSN Configurations:
              'name': "BN scale/shift"},
         ]
 
-    def forward(self, image):
+    def forward(self, image, gradient):
         # input: Tensor [N, TxCxL, H, W] (L=1 for depth)
-        sample_len = (3 if self.modality == "depth" else 2) * self.new_length
+        sample_len = 3 * self.new_length
 
         if self.modality == 'depthDiff':
             sample_len = 3 * self.new_length
-            image = self._get_diff(image)
+            image = self._get_diff(image, gradient)
 
         # input.view(...) [NxT, CxL, H, W]
         base_out = self.backbone(image.view((-1, sample_len) + image.size()[-2:]))
@@ -165,20 +165,17 @@ TSN Configurations:
         # output [N, K (num_class)]
         return output
 
-    def _get_diff(self, image, keep_rgb=False):
-        input_c = 3 if self.modality in ["depth", "depthDiff"] else 2
+    def _get_diff(self, image, gradient):
+        img_c = 3
         # input: [N, TxCxL, H, W] -> input_view: [N, T, L, C, H, W]
-        input_view = image.view((-1, self.num_segments, self.new_length + 1, input_c,) + image.size()[2:])
-        if keep_rgb:
-            new_data = input_view.clone()
-        else:
-            new_data = input_view[:, :, 1:, :, :, :].clone()
+        img_view = image.view((-1, self.num_segments, self.new_length + 1, img_c,) + image.size()[2:])
+        grad_view = gradient.view((-1, self.num_segments, self.new_length + 1, img_c,) + gradient.size()[2:])[:, :, 1:, :, :, :]
+
+        new_data = img_view[:, :, 1:, :, :, :].clone()
 
         for x in reversed(list(range(1, self.new_length + 1))):
-            if keep_rgb:
-                new_data[:, :, x, :, :, :] = input_view[:, :, x, :, :, :] - input_view[:, :, x - 1, :, :, :]
-            else:
-                new_data[:, :, x - 1, :, :, :] = input_view[:, :, x, :, :, :] - input_view[:, :, x - 1, :, :, :]
+            new_data[:, :, x - 1, :, :, :] = img_view[:, :, x, :, :, :] - \
+                                             img_view[:, :, x - 1, :, :, :] + grad_view[:, :, x - 1, :, :, :]
 
         return new_data
 

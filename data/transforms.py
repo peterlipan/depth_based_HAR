@@ -332,7 +332,7 @@ class Transforms:
                                                GroupRandomHorizontalFlip(is_flow=False), Stack(roll=False),
                                                ToTorchFormatTensor(div=True), normalize])
         elif modality == 'm3d':
-            self.train_transforms = self.__call__
+            self.train_transforms = self._group_augmentation
 
     @staticmethod
     def _single_augmentation(img, augmentations=None, replay=None):
@@ -348,7 +348,8 @@ class Transforms:
 
         return img_aug, replay
 
-    def __call__(self, img_group, grad_group, replay=None):
+    @staticmethod
+    def _group_augmentation(self, img_group, grad_group):
         # apply the same augmentations to image-gradient pairs
         img_aug_group = []
         grad_aug_group = []

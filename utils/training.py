@@ -43,12 +43,15 @@ def train(loaders, model, criterion, optimizer, logger, args):
     best_top1 = 0
     start = time.time()
     for epoch in range(args.epochs):
-        for i, (img, target) in enumerate(train_loader):
+        for i, (img, grad, target) in enumerate(train_loader):
             data_time.update(time.time() - start)
             img, target = img.cuda(), target.cuda()
 
-            # compute output
-            output = model(img)
+            # m3d
+            if grad is not None:
+                grad = grad.cuda()
+
+            output = model(img, grad)
             loss = criterion(output, target)
 
             # measure accuracy and record loss
