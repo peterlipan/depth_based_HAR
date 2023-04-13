@@ -150,7 +150,7 @@ TSN Configurations:
         # input: Tensor [N, TxCxL, H, W] (L=1 for depth)
         sample_len = 3 * self.new_length
 
-        if self.modality == 'depthDiff':
+        if self.modality in ['depthDiff', 'm3d']:
             sample_len = 3 * self.new_length
             image = self._get_diff(image, gradient)
 
