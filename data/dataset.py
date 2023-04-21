@@ -65,7 +65,7 @@ class TSNDataSet(data.Dataset):
         cv2_img = cv2.cvtColor(int8_img, cv2.COLOR_GRAY2RGB)
         gradient = self._cal_gradient_mag(cv2_img)
 
-        return [Image.fromarray(int8_img).convert('RGB')], [cv2.cvtColor(gradient, cv2.COLOR_GRAY2RGB)]
+        return [Image.fromarray(int8_img).convert('RGB')], [gradient]
 
     def _parse_list(self):
         self.video_list = [VideoRecord(self.csv.iloc[i], self.data_path) for i in range(self.data_num)]
@@ -91,11 +91,11 @@ class TSNDataSet(data.Dataset):
                     p += 1
 
         if self.modality == 'm3d':
-            img_augmented, grad_augmented = self.transform(images, gradients)
-            process_data = (img_augmented, grad_augmented)
+            img_augmented, grad_augmented = self.transform(img_group=images, grad_group=gradients)
+            return img_augmented, grad_augmented, record.label
         else:
-            process_data = (self.transform(images), None)
-        return process_data, record.label
+            img_augmented = self.transform(images)
+            return img_augmented, None, record.label
 
     def __len__(self):
         return len(self.video_list)

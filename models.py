@@ -27,7 +27,7 @@ TSN Configurations:
 
         self._prepare_backbone(backbone, num_class)
 
-        if self.modality == 'depthDiff':
+        if self.modality in ['depthDiff', 'm3d']:
             self.backbone = self._construct_diff_model(self.backbone)
 
         self.consensus = AvgConsensus()

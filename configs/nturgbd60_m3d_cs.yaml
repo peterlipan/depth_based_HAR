@@ -20,7 +20,7 @@ num_segments: 3
 
 # optimization
 epochs: 45
-batch_size: 128
+batch_size: 96
 dropout: 0.5
 lr: 0.001
 lr_steps: [20, 40]
