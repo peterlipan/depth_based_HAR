@@ -26,6 +26,8 @@ class AverageMeter(object):
 
 def accuracy(output, target, topk=(1,)):
     """Computes the precision@k for the specified values of k"""
+    with torch.no_grad():
+        output = F.softmax(output, dim=1)
     maxk = max(topk)
     batch_size = target.size(0)
 
@@ -68,13 +70,11 @@ def validate(loader, model, criterion):
     logits = torch.Tensor().cuda()
 
     with torch.no_grad():
-        for i, (img, grad, target) in enumerate(loader):
+        for i, (img, target) in enumerate(loader):
             img, target = img.cuda(), target.cuda()
-            if grad is not None:
-                grad = grad.cuda()
 
             # compute output
-            output = model(img, grad)
+            output = model(img)
             loss = criterion(output, target)
             output = F.softmax(output, dim=1)
 

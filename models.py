@@ -146,13 +146,9 @@ TSN Configurations:
              'name': "BN scale/shift"},
         ]
 
-    def forward(self, image, gradient):
+    def forward(self, image):
         # input: Tensor [N, TxCxL, H, W] (L=1 for depth)
         sample_len = 3 * self.new_length
-
-        if self.modality in ['depthDiff', 'm3d']:
-            sample_len = 3 * self.new_length
-            image = self._get_diff(image, gradient)
 
         # input.view(...) [NxT, CxL, H, W]
         base_out = self.backbone(image.view((-1, sample_len) + image.size()[-2:]))

@@ -43,10 +43,11 @@ class TSNDataSet(data.Dataset):
         self.transform = transform
         self.test_mode = test_mode
         self.num_class = len(set(self.csv['action_id']))
-        self.sampler = SegmentedSample(new_length, num_segments, test_mode, start_index)
 
         if self.modality in ['depthDiff', 'm3d']:
             self.new_length += 1  # Diff needs one more image to calculate diff
+
+        self.sampler = SegmentedSample(new_length, num_segments, test_mode, start_index)
 
         self._parse_list()
 
@@ -61,11 +62,12 @@ class TSNDataSet(data.Dataset):
     def _load_image(self, directory, idx):
         coll = io.ImageCollection(os.path.join(directory, self.image_tmpl.format(idx)))
         # rescale and to numpy float array
-        int8_img = (np.squeeze(np.array(coll)) / 65535. * 255.).astype(np.uint8)
-        cv2_img = cv2.cvtColor(int8_img, cv2.COLOR_GRAY2RGB)
+        int16_img = (np.squeeze(np.array(coll))).astype(np.uint16)
+
+        cv2_img = cv2.cvtColor(int16_img, cv2.COLOR_GRAY2RGB)
         gradient = self._cal_gradient_mag(cv2_img)
 
-        return [Image.fromarray(int8_img).convert('RGB')], [gradient]
+        return Image.fromarray(int16_img).convert('RGB'), gradient
 
     def _parse_list(self):
         self.video_list = [VideoRecord(self.csv.iloc[i], self.data_path) for i in range(self.data_num)]
@@ -78,24 +80,19 @@ class TSNDataSet(data.Dataset):
         return self.get(record, segment_indices)
 
     def get(self, record, indices):
-
-        images = list()
-        gradients = list()
-        for seg_ind in indices:
-            p = int(seg_ind)
-            for i in range(self.new_length):
-                img, grad = self._load_image(record.path, p)
-                images.extend(img)
-                gradients.extend(grad)
-                if p < record.num_frames:
-                    p += 1
+        images = []
+        gradients = []
+        for p in indices:
+            img, grad = self._load_image(record.path, p)
+            images.append(img)
+            gradients.append(grad)
 
         if self.modality == 'm3d':
-            img_augmented, grad_augmented = self.transform(img_group=images, grad_group=gradients)
-            return img_augmented, grad_augmented, record.label
+            img_augmented = self.transform(img_group=images, grad_group=gradients)
         else:
             img_augmented = self.transform(images)
-            return img_augmented, None, record.label
+
+        return img_augmented, record.label
 
     def __len__(self):
         return len(self.video_list)

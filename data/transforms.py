@@ -4,8 +4,7 @@ import numpy as np
 import numbers
 import math
 import torch
-import albumentations as A
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageChops
 import torchvision.transforms as T
 
 
@@ -44,20 +43,67 @@ class GroupCenterCrop(object):
         return [self.worker(img) for img in img_group]
 
 
-class GroupRandomHorizontalFlip(object):
-    """Randomly horizontally flips the given PIL.Image with a probability of 0.5
+class GroupRandomRotate(object):
+    """
+    Randomly rotates the given PIL.Image group with a given probability
+    and a range of rotation angles.
     """
 
-    def __init__(self, is_flow=False):
-        self.is_flow = is_flow
+    def __init__(self, prob=0.5, degrees=15):
+        """
+        Args:
+            prob (float): probability of applying the transformation
+            degrees (float or int): range of rotation angles, in degrees.
+                If a float, the range will be (-degrees, degrees).
+                If an int, the range will be (-degrees, degrees).
+        """
+        self.prob = prob
+        self.degrees = degrees
 
-    def __call__(self, img_group, is_flow=False):
+    def __call__(self, img_group):
+        """
+        Args:
+            img_group (list): list of PIL.Image objects to be rotated.
+
+        Returns:
+            list: list of rotated PIL.Image objects.
+        """
+        if random.random() < self.prob:
+            angle = random.uniform(-self.degrees, self.degrees)
+            ret = [img.rotate(angle, resample=Image.BICUBIC) for img in img_group]
+            return ret
+        return img_group
+
+
+class GroupRandomHorizontalFlip(object):
+    """
+    Randomly horizontally flips the given PIL.Image with a given probability
+    """
+
+    def __init__(self, prob=0.5):
+        self.prob = prob
+
+    def __call__(self, img_group):
         v = random.random()
         if v < 0.5:
             ret = [img.transpose(Image.FLIP_LEFT_RIGHT) for img in img_group]
-            if self.is_flow:
-                for i in range(0, len(ret), 2):
-                    ret[i] = ImageOps.invert(ret[i])  # invert flow pixel values when flipping
+            return ret
+        else:
+            return img_group
+
+
+class GroupRandomVerticalFlip(object):
+    """
+    Randomly vertically flips the given PIL.Image with a given probability
+    """
+
+    def __init__(self, prob=0.5):
+        self.prob = prob
+
+    def __call__(self, img_group):
+        v = random.random()
+        if v < self.prob:
+            ret = [img.transpose(Image.FLIP_TOP_BOTTOM) for img in img_group]
             return ret
         else:
             return img_group
@@ -260,14 +306,20 @@ class Stack(object):
         self.roll = roll
 
     def __call__(self, img_group):
-            return np.concatenate(img_group, axis=2)
+        if img_group[0].mode == 'L':
+            return np.concatenate([np.expand_dims(x, 2) for x in img_group], axis=2)
+        elif img_group[0].mode == 'RGB':
+            if self.roll:
+                return np.concatenate([np.array(x)[:, :, ::-1] for x in img_group], axis=2)
+            else:
+                return np.concatenate(img_group, axis=2)
 
 
 class ToTorchFormatTensor(object):
     """ Converts a PIL.Image (RGB) or numpy.ndarray (H x W x C) in the range [0, 255]
     to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0] """
 
-    def __init__(self, div=True):
+    def __init__(self, div=255.):
         self.div = div
 
     def __call__(self, pic):
@@ -281,7 +333,7 @@ class ToTorchFormatTensor(object):
             # put it from HWC to CHW format
             # yikes, this transpose takes 80% of the loading time/CPU
             img = img.transpose(0, 1).transpose(0, 2).contiguous()
-        return img.float().div(255) if self.div else img.float()
+        return img.float().div(self.div) if self.div else img.float()
 
 
 class IdentityTransform(object):
@@ -290,75 +342,72 @@ class IdentityTransform(object):
         return data
 
 
+class GroupImageDiff(object):
+    """
+    Calculates pixel-wise difference between consecutive frames in a given PIL.Image group,
+    except for the last one.
+    """
+
+    def __init__(self, new_length):
+        """
+        Args:
+            new_length (int): number of images in each segmentation
+        """
+        self.new_length = new_length
+
+    def __call__(self, img_group):
+        """
+        Args:
+            img_group (list): list of PIL.Image objects.
+
+        Returns:
+            list: list of PIL.Image objects, with pixel-wise differences between
+            consecutive frames in each segmentation.
+        """
+        num_images = len(img_group)
+        assert num_images % self.new_length == 0, f"Expected number of images to be divisible by {self.new_length}"
+
+        diff_group = []
+        for i in range(0, num_images - self.new_length, self.new_length):
+            seg_images = img_group[i:i+self.new_length]
+
+            # Calculate pixel-wise difference between consecutive frames in the segmentation
+            for j in range(1, self.new_length):
+                diff = ImageChops.difference(seg_images[j], seg_images[j-1])
+                diff_group.append(diff)
+
+        return diff_group
+
+
 class Transforms:
-    def __init__(self, modality, input_size):
+    def __init__(self, modality, input_size, new_length):
         self.modality = modality
         self.input_size = input_size
+        self.new_length = new_length
         scale_size = 256
 
-        self.train_transforms = None
-
         # same normalization for ImageNet pretrained models
-        normalize = GroupNormalize([0.485, 0.456, 0.406],
-                                   [0.229, 0.224, 0.225])
-        if modality in ['depthDiff', 'm3d']:
-            normalize = IdentityTransform()
+        normalize = T.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225])
 
         self.test_transforms = T.Compose([GroupScale(scale_size), GroupCenterCrop(input_size),
-                                          Stack(roll=False), ToTorchFormatTensor(div=True), normalize])
+                                          Stack(), ToTorchFormatTensor(div=True), normalize])
 
-        self.augmentations = A.ReplayCompose(
-            [
-                A.Resize(height=scale_size, width=scale_size),
-                A.CenterCrop(height=input_size, width=input_size),
-                A.HorizontalFlip(p=0.5),
-                A.VerticalFlip(p=0.5),
-                A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.2, rotate_limit=45, p=0.6),
-                # A.GaussNoise(p=0.4),
-                # A.GridDropout(p=0.2),
-            ]
-        )
-
-        self.test_augmentations = A.ReplayCompose(
-            [
-                A.Resize(height=scale_size, width=scale_size),
-                A.CenterCrop(height=input_size, width=input_size),
-            ]
-        )
-
-        self.post_process = T.Compose([Stack(roll=False), ToTorchFormatTensor(div=True), normalize])
-
-        if modality in ['depth', 'depthDiff', 'gradient']:
+        if modality == 'depth':
             self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
-                                               GroupRandomHorizontalFlip(is_flow=False), Stack(roll=False),
-                                               ToTorchFormatTensor(div=True), normalize])
-        elif modality == 'm3d':
-            self.train_transforms = self._group_augmentation(self.augmentations)
-            self.test_transforms = self._group_augmentation(self.test_augmentations)
-
-
-    def _group_augmentation(self, augmentations):
-        # apply the same augmentations to image-gradient pairs
-        # PIL image to numpy array
-        def _apply_augmentation(img_group, grad_group):
-            if not isinstance(img_group[0], np.ndarray):
-                img_group = [np.array(item) for item in img_group]
-            if not isinstance(grad_group[0], np.ndarray):
-                grad_group = [np.array(item) for item in grad_group]
-            replay = augmentations(image=img_group[0])['replay']
-            img_aug_group = [A.ReplayCompose.replay(replay, image=img)['image'] for img in img_group]
-            grad_aug_group = [A.ReplayCompose.replay(replay, image=grad)['image'] for grad in grad_group]
-
-            # stack, normalize and to tensor
-            images = self.post_process(img_aug_group)
-            gradients = self.post_process(grad_aug_group)
-            return images, gradients
-
-        return _apply_augmentation
+                                               GroupRandomHorizontalFlip(prob=0.5),
+                                               GroupRandomVerticalFlip(prob=0.5),
+                                               Stack(roll=False), ToTorchFormatTensor(div=65535.), normalize])
+        elif modality == 'depthDiff':
+            self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
+                                               GroupRandomHorizontalFlip(prob=0.5),
+                                               GroupRandomVerticalFlip(prob=0.5),
+                                               GroupImageDiff(new_length=new_length),
+                                               Stack(roll=False), ToTorchFormatTensor(div=65535.)])
 
 
 if __name__ == "__main__":
-    transforms = Transforms(modality='depth', input_size=224)
+    transforms = Transforms(modality='depth', input_size=224, new_length=1)
     train_transforms = transforms.train_transforms
     test_transforms = transforms.test_transforms
 

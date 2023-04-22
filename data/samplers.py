@@ -56,11 +56,20 @@ class SegmentedSample:
             num_frames (int): Total number of frame in the video.
 
         Returns:
-            np.ndarray: Sampled frame indices.
+            list: Sampled frame indices.
         """
         if self.test_mode:
             clip_offsets = self._get_test_indices(num_frames)
         else:
             clip_offsets = self._get_train_indices(num_frames)
 
-        return np.round(clip_offsets).astype(np.int) + self.start_index
+        # Ensure that the output indices will not exceed the num_frames
+        clip_offsets = np.clip(clip_offsets, 0, num_frames - self.new_length)
+
+        # Sample new_length frames for each clip
+        indices = np.expand_dims(np.arange(self.new_length), 0) + np.expand_dims(clip_offsets, 1)
+
+        # flatten the list
+        indices = indices.flatten().tolist()
+
+        return indices
