@@ -68,7 +68,8 @@ def png2ppm(path):
     To transform the original .png images to .ppm files.
     The raw depth is captured as uint16 format. Directly reading the .png will return uint8 images.
     """
-    for filename in glob.iglob(os.path.join(path, '**', '*.png'), recursive=True):
+    for i, filename in enumerate(glob.iglob(os.path.join(path, '**', '*.png'), recursive=True)):
+        print("\rProcessing {:08d} images...".format(i))
         new_filename = os.path.splitext(filename)[0] + '.ppm'
         os.rename(filename, new_filename)
 
