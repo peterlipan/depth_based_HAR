@@ -47,7 +47,7 @@ class TSNDataSet(data.Dataset):
         if self.modality in ['depthDiff', 'm3d']:
             self.new_length += 1  # Diff needs one more image to calculate diff
 
-        self.sampler = SegmentedSample(new_length, num_segments, test_mode, start_index)
+        self.sampler = SegmentedSample(self.new_length, num_segments, test_mode, start_index)
 
         self._parse_list()
 

@@ -19,7 +19,7 @@ def main(args, wandb_logger):
         data_length = 5
 
     # define dataset
-    transforms = Transforms(args.modality, args.img_size)
+    transforms = Transforms(args.modality, args.img_size, data_length)
     train_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_train,
                                num_segments=args.num_segments, new_length=data_length,
                                modality=args.modality, image_tmpl=args.image_tmpl,

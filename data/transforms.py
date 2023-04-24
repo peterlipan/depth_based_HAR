@@ -368,14 +368,14 @@ class GroupImageDiff(object):
         assert num_images % self.new_length == 0, f"Expected number of images to be divisible by {self.new_length}"
 
         diff_group = []
-        for i in range(0, num_images - self.new_length, self.new_length):
+        for i in range(0, num_images, self.new_length):
             seg_images = img_group[i:i+self.new_length]
 
             # Calculate pixel-wise difference between consecutive frames in the segmentation
             for j in range(1, self.new_length):
                 diff = ImageChops.difference(seg_images[j], seg_images[j-1])
                 diff_group.append(diff)
-
+        
         return diff_group
 
 
@@ -384,6 +384,9 @@ class Transforms:
         self.modality = modality
         self.input_size = input_size
         self.new_length = new_length
+        if modality in ['depthDiff', 'm3d']:
+            self.new_length += 1
+        
         scale_size = 256
 
         # same normalization for ImageNet pretrained models
@@ -402,7 +405,11 @@ class Transforms:
             self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
                                                GroupRandomHorizontalFlip(prob=0.5),
                                                GroupRandomVerticalFlip(prob=0.5),
-                                               GroupImageDiff(new_length=new_length),
+                                               GroupImageDiff(new_length=self.new_length),
+                                               Stack(roll=False), ToTorchFormatTensor(div=65535.)])
+            
+            self.test_transforms = T.Compose([GroupScale(scale_size), GroupCenterCrop(input_size),
+                                               GroupImageDiff(new_length=self.new_length),
                                                Stack(roll=False), ToTorchFormatTensor(div=65535.)])
 
 

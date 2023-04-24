@@ -70,6 +70,6 @@ class SegmentedSample:
         indices = np.expand_dims(np.arange(self.new_length), 0) + np.expand_dims(clip_offsets, 1)
 
         # flatten the list
-        indices = indices.flatten().tolist()
+        indices = indices.flatten() + self.start_index
 
         return indices
