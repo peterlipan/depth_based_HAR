@@ -51,23 +51,14 @@ class TSNDataSet(data.Dataset):
 
         self._parse_list()
 
-    @staticmethod
-    def _cal_gradient_mag(img):
-        grad_x = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=3)
-        grad_y = cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize=3)
-        grad_mag = np.sqrt(grad_x ** 2 + grad_y ** 2)
-        grad_mag_norm = (grad_mag - np.min(grad_mag)) / (np.max(grad_mag) - np.min(grad_mag))
-        return grad_mag_norm
-
     def _load_image(self, directory, idx):
+        # load the ppm file
         coll = io.ImageCollection(os.path.join(directory, self.image_tmpl.format(idx)))
-        # rescale and to numpy float array
-        int16_img = (np.squeeze(np.array(coll))).astype(np.uint16)
+        # TODO: Make it uint16 instead of uint8
+        # PIL Image RGB mode will transform uint16 to uint8
+        int8_img = (np.squeeze(np.array(coll)) * 255. / 65535.).astype(np.uint8)
 
-        cv2_img = cv2.cvtColor(int16_img, cv2.COLOR_GRAY2RGB)
-        gradient = self._cal_gradient_mag(cv2_img)
-
-        return Image.fromarray(int16_img).convert('RGB'), gradient
+        return Image.fromarray(int8_img).convert('RGB')
 
     def _parse_list(self):
         self.video_list = [VideoRecord(self.csv.iloc[i], self.data_path) for i in range(self.data_num)]
@@ -80,17 +71,9 @@ class TSNDataSet(data.Dataset):
         return self.get(record, segment_indices)
 
     def get(self, record, indices):
-        images = []
-        gradients = []
-        for p in indices:
-            img, grad = self._load_image(record.path, p)
-            images.append(img)
-            gradients.append(grad)
 
-        if self.modality == 'm3d':
-            img_augmented = self.transform(img_group=images, grad_group=gradients)
-        else:
-            img_augmented = self.transform(images)
+        images = [self._load_image(record.path, p) for p in indices]
+        img_augmented = self.transform(images)
 
         return img_augmented, record.label
 
