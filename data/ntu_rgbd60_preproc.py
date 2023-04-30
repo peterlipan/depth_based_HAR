@@ -75,7 +75,7 @@ def png2ppm(path):
 
 
 if __name__ == '__main__':
-    root = "/mnt/ssd/li/NTU_RGBD_60/nturgb+d_depth_masked"
+    root = "/mnt/ssd/li/nturgb+d_depth_masked"
     split_root = '../split/NTU_RGBD_60'
     if not os.path.exists(split_root):
         os.makedirs(split_root)

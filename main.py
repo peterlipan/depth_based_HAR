@@ -13,7 +13,7 @@ from torch.nn import DataParallel
 
 def main(args, wandb_logger):
     data_length = None
-    if args.modality == 'depth':
+    if args.modality in ['depth', 'depthGrad']:
         data_length = 1
     elif args.modality in ['depthDiff', 'm3d']:
         data_length = 5

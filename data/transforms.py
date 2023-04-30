@@ -396,7 +396,13 @@ class GroupImageGradient(object):
         grad_x = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=3)
         grad_y = cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize=3)
         grad_mag = np.sqrt(grad_x ** 2 + grad_y ** 2)
-        grad_mag_norm = (grad_mag - np.min(grad_mag)) / (np.max(grad_mag) - np.min(grad_mag))
+        if np.max(grad_mag) != np.min(grad_mag):
+            grad_mag_norm = (grad_mag - np.min(grad_mag)) / (np.max(grad_mag) - np.min(grad_mag))
+        elif np.max(grad_mag) != 0:
+            grad_mag_norm = grad_mag / np.max(grad_mag)
+        else:
+            grad_mag_norm = grad_mag
+
         return grad_mag_norm
 
     def __call__(self, img_group):
