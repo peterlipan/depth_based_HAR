@@ -419,6 +419,61 @@ class GroupImageGradient(object):
         return [self._cal_gradient_mag(img) for img in array_list]
 
 
+class GroupM3d(object):
+    """
+    Calculates the gradient and pixel-wise difference between consecutive frames in a given PIL.Image group
+    """
+
+    def __init__(self, new_length, absolute=False):
+        """
+        Args:
+            new_length (int): number of images in each segmentation
+        """
+        self.new_length = new_length
+        self.absolute = absolute
+
+    @staticmethod
+    def _cal_gradient_mag(img):
+        # calculate the normalized spectrum of the gradient of the image
+        grad_x = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize=3)
+        grad_mag = np.sqrt(grad_x ** 2 + grad_y ** 2)
+        if np.max(grad_mag) != np.min(grad_mag):
+            grad_mag_norm = (grad_mag - np.min(grad_mag)) / (np.max(grad_mag) - np.min(grad_mag))
+        elif np.max(grad_mag) != 0:
+            grad_mag_norm = grad_mag / np.max(grad_mag)
+        else:
+            grad_mag_norm = grad_mag
+
+        return grad_mag_norm
+
+    def __call__(self, img_group):
+        """
+        Args:
+            img_group (list): list of PIL.Image objects.
+
+        Returns:
+            list: list of PIL.Image objects, with pixel-wise differences between
+            consecutive frames in each segmentation.
+        """
+        num_images = len(img_group)
+        assert num_images % self.new_length == 0, f"Expected number of images to be divisible by {self.new_length}"
+
+        m3d_group = []
+        for i in range(0, num_images, self.new_length):
+            seg_images = [np.array(img, dtype=int) for img in img_group[i:i + self.new_length]]
+
+            # Calculate pixel-wise difference between consecutive frames in the segmentation
+            for j in range(1, self.new_length):
+                if self.absolute:
+                    diff = np.abs(seg_images[j] - seg_images[j - 1]) + self._cal_gradient_mag(seg_images[j - 1])
+                else:
+                    diff = seg_images[j] - seg_images[j - 1] + self._cal_gradient_mag(seg_images[j - 1])
+                m3d_group.append(diff)
+
+        return m3d_group
+
+
 class Transforms:
     def __init__(self, modality, input_size, new_length):
         self.modality = modality
@@ -460,6 +515,17 @@ class Transforms:
 
             self.test_transforms = T.Compose([GroupScale(scale_size), GroupCenterCrop(input_size),
                                               GroupImageGradient(),
+                                              Stack(roll=False), ToTorchFormatTensor(div=255.)])
+
+        elif modality == 'm3d':
+            self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
+                                               GroupRandomHorizontalFlip(prob=0.5),
+                                               GroupRandomVerticalFlip(prob=0.5),
+                                               GroupM3d(new_length=self.new_length),
+                                               Stack(roll=False), ToTorchFormatTensor(div=255.)])
+
+            self.test_transforms = T.Compose([GroupScale(scale_size), GroupCenterCrop(input_size),
+                                              GroupM3d(new_length=self.new_length),
                                               Stack(roll=False), ToTorchFormatTensor(div=255.)])
 
 
