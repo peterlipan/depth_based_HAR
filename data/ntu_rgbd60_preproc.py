@@ -69,13 +69,13 @@ def png2ppm(path):
     The raw depth is captured as uint16 format. Directly reading the .png will return uint8 images.
     """
     for i, filename in enumerate(glob.iglob(os.path.join(path, '**', '*.png'), recursive=True)):
-        print("\rProcessing {:08d} images...".format(i))
+        print("\rProcessing {:07d}/4807015 images...".format(i), end='', flush=True)
         new_filename = os.path.splitext(filename)[0] + '.ppm'
         os.rename(filename, new_filename)
 
 
 if __name__ == '__main__':
-    root = "/mnt/ssd/li/nturgb+d_depth_masked"
+    root = "/mnt/ssd/li/NTU_RGBD_60/nturgb+d_depth_masked"
     split_root = '../split/NTU_RGBD_60'
     if not os.path.exists(split_root):
         os.makedirs(split_root)

@@ -466,9 +466,9 @@ class GroupM3d(object):
             # Calculate pixel-wise difference between consecutive frames in the segmentation
             for j in range(1, self.new_length):
                 if self.absolute:
-                    diff = np.abs(seg_images[j] - seg_images[j - 1]) + self._cal_gradient_mag(seg_images[j - 1])
+                    diff = np.abs(seg_images[j] - seg_images[j - 1]) + self._cal_gradient_mag(seg_images[j - 1].astype(np.uint8))
                 else:
-                    diff = seg_images[j] - seg_images[j - 1] + self._cal_gradient_mag(seg_images[j - 1])
+                    diff = seg_images[j] - seg_images[j - 1] + self._cal_gradient_mag(seg_images[j - 1].astype(np.uint8))
                 m3d_group.append(diff)
 
         return m3d_group
