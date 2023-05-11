@@ -12,35 +12,32 @@ from torch.nn import DataParallel
 
 
 def main(args, wandb_logger):
-    frame_per_seg = 1
-    if args.modality in ['depthDiff', 'm3d']:
-        frame_per_seg = 5
 
     # define dataset
-    transforms = Transforms(args.modality, args.img_size, frame_per_seg)
+    transforms = Transforms(args.modality, args.img_size, args.frame_per_seg)
     train_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_train,
-                               num_segments=args.num_segments, frame_per_seg=frame_per_seg,
-                               modality=args.modality, image_tmpl=args.image_tmpl,
+                               num_segments=args.num_segments, frame_per_seg=args.frame_per_seg, 
+                               margin=args.margin, modality=args.modality, image_tmpl=args.image_tmpl,
                                transform=transforms.train_transforms, test_mode=False)
 
     test_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_test,
-                              num_segments=args.num_segments, frame_per_seg=frame_per_seg,
-                              modality=args.modality, image_tmpl=args.image_tmpl,
+                              num_segments=args.num_segments, frame_per_seg=args.frame_per_seg,
+                              margin=args.margin, modality=args.modality, image_tmpl=args.image_tmpl,
                               transform=transforms.test_transforms, test_mode=True)
     num_class = train_dataset.num_class
 
     # init model
-    model = TSN(num_class, args.num_segments, args.modality, frame_per_seg=frame_per_seg,
-                backbone=args.backbone, dropout=args.dropout, partial_bn=args.partialbn)
+    model = TSN(num_class, args.num_segments, args.modality, frame_per_seg=args.frame_per_seg,
+                backbone=args.backbone, dropout=args.dropout)
     policies = model.get_optim_policies()
     model = DataParallel(model, device_ids=[int(x) for x in args.gpus.split(',')]).cuda()
     cudnn.benchmark = True
 
     # Dataloaders
     train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True,
-                              num_workers=args.workers, pin_memory=True)
+                              num_workers=args.workers, pin_memory=True, drop_last=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
-                             num_workers=args.workers, pin_memory=True)
+                             num_workers=args.workers, pin_memory=True, drop_last=True)
     dataloaders = (train_loader, test_loader)
 
     criterion = torch.nn.CrossEntropyLoss().cuda()

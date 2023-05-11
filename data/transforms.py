@@ -450,7 +450,7 @@ class GroupM3d(object):
             front_view = np.min(seg_images, axis=0)
             depth_diff = seg_images[-1] - seg_images[0]
             back_view = np.max(seg_images, axis=0)
-            m3d = np.stack([front_view, depth_diff, back_view])
+            m3d = np.stack([front_view, depth_diff, back_view], axis=2)
             m3d_group.append(m3d)
 
         return m3d_group
@@ -461,8 +461,6 @@ class Transforms:
         self.modality = modality
         self.input_size = input_size
         self.frame_per_seg = frame_per_seg
-        if modality in ['depthDiff', 'm3d']:
-            self.frame_per_seg += 1
 
         scale_size = 256
 

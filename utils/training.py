@@ -31,10 +31,6 @@ def train(loaders, model, criterion, optimizer, logger, args):
     top5 = AverageMeter()
     batch_time = AverageMeter()
     data_time = AverageMeter()
-    if args.partialbn:
-        model.module.partialBN(True)
-    else:
-        model.module.partialBN(False)
 
     # switch to train mode
     model.train()

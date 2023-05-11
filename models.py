@@ -98,8 +98,7 @@ TSN Configurations:
             elif isinstance(m, nn.BatchNorm2d):
                 bn_cnt += 1
                 # later BN's are frozen
-                if not self._enable_pbn or bn_cnt == 1:
-                    bn.extend(list(m.parameters()))
+                bn.extend(list(m.parameters()))
             elif len(m._modules) == 0:
                 if len(list(m.parameters())) > 0:
                     raise ValueError("New atomic module type: {}. Need to give it a learning policy".format(type(m)))
@@ -118,11 +117,11 @@ TSN Configurations:
         ]
 
     def forward(self, image):
-        # input: Tensor [N, TxCxL, H, W] (L=1 for depth)
-        sample_len = 3 * self.frame_per_seg
+        # input: Tensor [N, TxC, H, W] (L=1 for depth)
+        num_channels = 3
 
-        # input.view(...) [NxT, CxL, H, W]
-        base_out = self.backbone(image.view((-1, sample_len) + image.size()[-2:]))
+        # input.view(...) [NxT, C, H, W]
+        base_out = self.backbone(image.view((-1, num_channels) + image.size()[-2:]))
         # base_out [NxT, K (num_class)]
 
         base_out = base_out.view((-1, self.num_segments) + base_out.size()[1:])
