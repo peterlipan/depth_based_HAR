@@ -4,7 +4,7 @@ from PIL import Image
 import numpy as np
 import torch.utils.data as data
 from skimage import io
-from .samplers import SegmentedSample
+from .samplers import SegmentedSample, HierarchySample
 
 
 class VideoRecord(object):
@@ -28,7 +28,7 @@ class VideoRecord(object):
 
 class TSNDataSet(data.Dataset):
     def __init__(self, data_path, csv_path,
-                 num_segments=3, new_length=1, modality='depth',
+                 num_segments=3, frame_per_seg=1, margin=3,modality='depth',
                  image_tmpl='MDepth-{:08d}.ppm', transform=None,
                  test_mode=False, start_index=1):
 
@@ -36,17 +36,15 @@ class TSNDataSet(data.Dataset):
         self.csv = pd.read_csv(csv_path)
         self.data_num = self.csv.shape[0]
         self.num_segments = num_segments
-        self.new_length = new_length  # number of frames for each segmentation after sampling
+        self.frame_per_seg = frame_per_seg  # number of frames for each segmentation after sampling
         self.modality = modality
         self.image_tmpl = image_tmpl
         self.transform = transform
         self.test_mode = test_mode
         self.num_class = len(set(self.csv['action_id']))
 
-        if self.modality in ['depthDiff', 'm3d']:
-            self.new_length += 1  # Diff needs one more image to calculate diff
-
-        self.sampler = SegmentedSample(self.new_length, num_segments, test_mode, start_index)
+        self.sampler = HierarchySample(frame_per_seg=self.frame_per_seg, num_segments=num_segments,
+                                       margin=margin, test_mode=test_mode, start_index=start_index)
 
         self._parse_list()
 

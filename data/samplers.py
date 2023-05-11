@@ -73,3 +73,86 @@ class SegmentedSample:
         indices = indices.flatten() + self.start_index
 
         return indices
+
+
+class HierarchySample:
+    def __init__(self,
+                 frame_per_seg,
+                 num_segments,
+                 margin,
+                 test_mode=False,
+                 start_index=1):
+        """
+        Segmented sampling
+        :param frame_per_seg: number of frames of each segment to be sampled
+        :param num_segments: number of segments
+        :param test_mode: if True, use the test indices
+        :param start_index:　the starting index for the frames, usually 0 or 1
+        """
+
+        self.frame_per_seg = frame_per_seg
+        self.num_segments = num_segments
+        self.test_mode = test_mode
+        self.start_index = start_index
+        self.margin = margin
+
+    def _get_train_indices(self, num_frames):
+        """
+        :param num_frames: number of frames
+        :return: list of segments
+        """
+        # split the indices into segments
+        if num_frames >= self.num_segments:
+            segments = np.array_split(np.arange(num_frames), self.num_segments)
+            # if the number of frames is not enough for sampling with replacement
+            replace = num_frames < self.num_segments * self.frame_per_seg
+            indices = [np.sort(np.random.choice(seg, self.frame_per_seg, replace=replace)) for seg in segments]
+        else:
+            indices = np.zeros((self.num_segments, self.frame_per_seg))
+
+        return indices
+
+    def _get_test_indices(self, num_frames):
+        """
+        :param num_frames: number of frames
+        :return: list of segments
+        """
+        # split the indices into segments
+        if num_frames >= self.num_segments:
+            segments = np.array_split(np.arange(num_frames), self.num_segments)
+            # sample uniformly distributed frames
+            # if num_frames < self.num_segments * self.new_length * self.margin, set margin=1
+            margin = self.margin if num_frames >= self.num_segments * self.frame_per_seg * self.margin else 1
+            if num_frames >= self.num_segments * self.frame_per_seg:
+                start_sub_idx = [(len(seg) - self.frame_per_seg * margin) // 2 for seg in segments]
+                start_idx = [seg[sub_idx] for seg, sub_idx in zip(segments, start_sub_idx)]
+                indices = [np.array([idx + i * margin for i in range(self.frame_per_seg)]) for idx in start_idx]
+            # if the number of frames in each segment is less than new_length
+            else:
+                indices = [np.sort(np.random.choice(seg, self.frame_per_seg, replace=True)) for seg in segments]
+        else:
+            indices = np.zeros((self.num_segments, self.frame_per_seg))
+
+        return indices
+
+    def __call__(self, num_frames):
+        """Choose clip offsets for the video in a given mode.
+
+        Args:
+            num_frames (int): Total number of frame in the video.
+
+        Returns:
+            list: Sampled frame indices.
+        """
+        if self.test_mode:
+            clip_offsets = self._get_test_indices(num_frames)
+        else:
+            clip_offsets = self._get_train_indices(num_frames)
+
+        # Ensure that the output indices will not exceed the num_frames
+        indices = np.clip(clip_offsets, 0, num_frames - 1)
+
+        # Convert the indices to a list of lists format
+        indices = [int(idx) + self.start_index for segment in indices for idx in segment]
+
+        return indices

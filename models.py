@@ -7,34 +7,27 @@ from torch.nn.init import normal_, constant_
 
 class TSN(nn.Module):
     def __init__(self, num_class, num_segments, modality,
-                 backbone='resnet50', new_length=None,
+                 backbone='resnet50', frame_per_seg=None,
                  dropout=0.8, partial_bn=True):
         super(TSN, self).__init__()
         self.modality = modality
         self.num_segments = num_segments
         self.dropout = dropout
         self.num_class = num_class
-        self.new_length = new_length
+        self.frame_per_seg = frame_per_seg
 
         print(("""
 Initializing TSN with base model: {}.
 TSN Configurations:
     input_modality:     {}
     num_segments:       {}
-    new_length:         {}
+    frame_per_seg:      {}
     dropout_ratio:      {}
-        """.format(backbone, self.modality, self.num_segments, self.new_length, self.dropout)))
+        """.format(backbone, self.modality, self.num_segments, self.frame_per_seg, self.dropout)))
 
         self._prepare_backbone(backbone, num_class)
 
-        if self.modality in ['depthDiff', 'm3d']:
-            self.backbone = self._construct_diff_model(self.backbone)
-
         self.consensus = AvgConsensus()
-
-        self._enable_pbn = partial_bn
-        if partial_bn:
-            self.partialBN(True)
 
     def _prepare_backbone(self, backbone, num_class):
 
@@ -72,28 +65,6 @@ TSN Configurations:
             constant_(model.classifier[3].bias, 0)
         
         self.backbone = model
-
-    def train(self, mode=True):
-        """
-        Override the default train() to freeze the BN parameters
-        :return:
-        """
-        super(TSN, self).train(mode)
-        count = 0
-        if self._enable_pbn:
-            print("Freezing BatchNorm2D except the first one.")
-            for m in self.backbone.modules():
-                if isinstance(m, nn.BatchNorm2d):
-                    count += 1
-                    if count >= (2 if self._enable_pbn else 1):
-                        m.eval()
-
-                        # shutdown update in frozen mode
-                        m.weight.requires_grad = False
-                        m.bias.requires_grad = False
-
-    def partialBN(self, enable):
-        self._enable_pbn = enable
 
     def get_optim_policies(self):
         first_conv_weight = []
@@ -148,7 +119,7 @@ TSN Configurations:
 
     def forward(self, image):
         # input: Tensor [N, TxCxL, H, W] (L=1 for depth)
-        sample_len = 3 * self.new_length
+        sample_len = 3 * self.frame_per_seg
 
         # input.view(...) [NxT, CxL, H, W]
         base_out = self.backbone(image.view((-1, sample_len) + image.size()[-2:]))
@@ -160,56 +131,3 @@ TSN Configurations:
         output = self.consensus(base_out, dim=1)
         # output [N, K (num_class)]
         return output
-
-    def _get_diff(self, image, gradient):
-        img_c = 3
-        # input: [N, TxCxL, H, W] -> input_view: [N, T, L, C, H, W]
-        img_view = image.view((-1, self.num_segments, self.new_length + 1, img_c,) + image.size()[2:])
-        if gradient is not None:
-            grad_view = gradient.view((-1, self.num_segments, self.new_length + 1,
-                                       img_c,) + gradient.size()[2:])[:, :, 1:, :, :, :]
-
-        new_data = img_view[:, :, 1:, :, :, :].clone()
-
-        for x in reversed(list(range(1, self.new_length + 1))):
-            if gradient is not None:
-                new_data[:, :, x - 1, :, :, :] = img_view[:, :, x, :, :, :] - \
-                                                 img_view[:, :, x - 1, :, :, :] + grad_view[:, :, x - 1, :, :, :]
-            else:
-                new_data[:, :, x - 1, :, :, :] = img_view[:, :, x, :, :, :] - img_view[:, :, x - 1, :, :, :]
-
-        return new_data
-
-    def _construct_diff_model(self, backbone, keep_rgb=False):
-        # modify the convolution layers
-        # Torch models are usually defined in a hierarchical way.
-        # nn.modules.children() return all sub modules in a DFS manner
-        modules = list(self.backbone.modules())
-        first_conv_idx = list(filter(lambda x: isinstance(modules[x], nn.Conv2d), list(range(len(modules)))))[0]
-        conv_layer = modules[first_conv_idx]
-        container = modules[first_conv_idx - 1]
-
-        # modify parameters, assume the first blob contains the convolution kernels
-        params = [x.clone() for x in conv_layer.parameters()]
-        kernel_size = params[0].size()
-        if not keep_rgb:
-            new_kernel_size = kernel_size[:1] + (3 * self.new_length,) + kernel_size[2:]
-            new_kernels = params[0].data.mean(dim=1, keepdim=True).expand(new_kernel_size).contiguous()
-        else:
-            new_kernel_size = kernel_size[:1] + (3 * self.new_length,) + kernel_size[2:]
-            new_kernels = torch.cat(
-                (params[0].data, params[0].data.mean(dim=1, keepdim=True).expand(new_kernel_size).contiguous()),
-                1)
-            new_kernel_size = kernel_size[:1] + (3 + 3 * self.new_length,) + kernel_size[2:]
-
-        new_conv = nn.Conv2d(new_kernel_size[1], conv_layer.out_channels,
-                             conv_layer.kernel_size, conv_layer.stride, conv_layer.padding,
-                             bias=True if len(params) == 2 else False)
-        new_conv.weight.data = new_kernels
-        if len(params) == 2:
-            new_conv.bias.data = params[1].data  # add bias if neccessary
-        layer_name = list(container.state_dict().keys())[0][:-7]  # remove .weight suffix to get the layer name
-
-        # replace the first convolution layer
-        setattr(container, layer_name, new_conv)
-        return backbone

@@ -12,27 +12,25 @@ from torch.nn import DataParallel
 
 
 def main(args, wandb_logger):
-    data_length = None
-    if args.modality in ['depth', 'depthGrad']:
-        data_length = 1
-    elif args.modality in ['depthDiff', 'm3d']:
-        data_length = 5
+    frame_per_seg = 1
+    if args.modality in ['depthDiff', 'm3d']:
+        frame_per_seg = 5
 
     # define dataset
-    transforms = Transforms(args.modality, args.img_size, data_length)
+    transforms = Transforms(args.modality, args.img_size, frame_per_seg)
     train_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_train,
-                               num_segments=args.num_segments, new_length=data_length,
+                               num_segments=args.num_segments, frame_per_seg=frame_per_seg,
                                modality=args.modality, image_tmpl=args.image_tmpl,
                                transform=transforms.train_transforms, test_mode=False)
 
     test_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_test,
-                              num_segments=args.num_segments, new_length=data_length,
+                              num_segments=args.num_segments, frame_per_seg=frame_per_seg,
                               modality=args.modality, image_tmpl=args.image_tmpl,
                               transform=transforms.test_transforms, test_mode=True)
     num_class = train_dataset.num_class
 
     # init model
-    model = TSN(num_class, args.num_segments, args.modality, new_length=data_length,
+    model = TSN(num_class, args.num_segments, args.modality, frame_per_seg=frame_per_seg,
                 backbone=args.backbone, dropout=args.dropout, partial_bn=args.partialbn)
     policies = model.get_optim_policies()
     model = DataParallel(model, device_ids=[int(x) for x in args.gpus.split(',')]).cuda()
