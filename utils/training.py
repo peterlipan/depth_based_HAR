@@ -71,7 +71,7 @@ def train(loaders, model, criterion, optimizer, logger, args):
                        'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                         epoch, i, len(train_loader), batch_time=batch_time,
                         data_time=data_time, loss=losses, top1=top1, top5=top5, lr=base_lr)))
-                test_acc, test_f1, test_auc, test_bac, test_sens, test_spec, test_loss = validate(test_loader, model, criterion)
+                test_acc, test_f1, test_auc, test_bac, test_sens, test_spec, test_prec, test_loss = validate(test_loader, model, criterion)
                 if logger is not None:
                     logger.log({'Training': {'loss': losses.val,
                                              'Top-1 Accuracy': top1.val,
@@ -82,9 +82,22 @@ def train(loaders, model, criterion, optimizer, logger, args):
                                          'AUC': test_auc,
                                          'BAC': test_bac,
                                          'Sensitivity': test_sens,
-                                         'Specificity': test_spec}})
+                                         'Specificity': test_spec,
+                                         "Precision": test_prec}})
 
-        test_acc, test_f1, test_auc, test_bac, test_sens, test_spec, test_loss = validate(test_loader, model, criterion)
+        test_acc, test_f1, test_auc, test_bac, test_sens, test_spec, test_prec, test_loss = validate(test_loader, model, criterion)
+        if logger is not None:
+            logger.log({'Training': {'loss': losses.val,
+                                     'Top-1 Accuracy': top1.val,
+                                     'Top-5 Accuracy': top5.val}})
+            logger.log({'Test': {'loss': test_loss,
+                                 'Accuracy': test_acc,
+                                 'F1 score': test_f1,
+                                 'AUC': test_auc,
+                                 'BAC': test_bac,
+                                 'Sensitivity': test_sens,
+                                 'Specificity': test_spec,
+                                 "Precision": test_prec}})
         is_best = test_acc > best_top1
         best_top1 = max(best_top1, test_acc)
         save_checkpoint(model.state_dict(), epoch, is_best, args)

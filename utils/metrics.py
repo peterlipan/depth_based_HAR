@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import torch.nn.functional as F
-from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score, roc_auc_score
+from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score, roc_auc_score, precision_score
 from imblearn.metrics import sensitivity_score, specificity_score
 
 
@@ -56,8 +56,9 @@ def compute_avg_metrics(groundTruth, logits):
     bac = balanced_accuracy_score(y_true=groundTruth, y_pred=predictions)
     sens_macro = sensitivity_score(y_true=groundTruth, y_pred=predictions, average='macro')
     spec_macro = specificity_score(y_true=groundTruth, y_pred=predictions, average='macro')
+    prec_macro = precision_score(y_true=groundTruth, y_pred=predictions, average="macro")
 
-    return mean_acc, f1_macro, auc, bac, sens_macro, spec_macro
+    return mean_acc, f1_macro, auc, bac, sens_macro, spec_macro, prec_macro
 
 
 def validate(loader, model, criterion):
@@ -82,8 +83,8 @@ def validate(loader, model, criterion):
             groundTruth = torch.cat((groundTruth, target))
             logits = torch.cat((logits, output))
 
-        acc, f1, auc, bac, sens, spec = compute_avg_metrics(groundTruth, logits)
+        acc, f1, auc, bac, sens, spec, prec = compute_avg_metrics(groundTruth, logits)
 
     model.train(training)
 
-    return acc, f1, auc, bac, sens, spec, losses.avg
+    return acc, f1, auc, bac, sens, spec, prec, losses.avg
