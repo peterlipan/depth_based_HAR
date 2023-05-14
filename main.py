@@ -47,8 +47,9 @@ def main(args, wandb_logger):
             group['name'], len(group['params']), group['lr_mult'], group['decay_mult'])))
 
     optimizer = torch.optim.SGD(policies, args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=0.1)
 
-    train(loaders=dataloaders, model=model, criterion=criterion, optimizer=optimizer,
+    train(loaders=dataloaders, model=model, criterion=criterion, optimizer=optimizer, scheduler=scheduler,
           logger=wandb_logger, args=args)
 
 

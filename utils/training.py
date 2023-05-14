@@ -25,7 +25,7 @@ def save_checkpoint(state, epoch, is_best, args):
         shutil.copyfile(filename, best_name)
 
 
-def train(loaders, model, criterion, optimizer, logger, args):
+def train(loaders, model, criterion, optimizer, scheduler, logger, args):
     losses = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
@@ -39,6 +39,7 @@ def train(loaders, model, criterion, optimizer, logger, args):
     best_top1 = 0
     start = time.time()
     for epoch in range(args.epochs):
+        scheduler.step()
         for i, (img, target) in enumerate(train_loader):
             data_time.update(time.time() - start)
             img, target = img.cuda(), target.cuda()
@@ -55,7 +56,7 @@ def train(loaders, model, criterion, optimizer, logger, args):
             # compute gradient and do SGD step
             optimizer.zero_grad()
             loss.backward()
-            optimizer.step()            
+            optimizer.step()
 
             batch_time.update(time.time() - start)
             start = time.time()
