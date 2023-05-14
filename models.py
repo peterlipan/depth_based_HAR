@@ -15,6 +15,7 @@ class TSN(nn.Module):
         self.dropout = dropout
         self.num_class = num_class
         self.frame_per_seg = frame_per_seg
+        self.partial_bn = partial_bn
 
         print(("""
 Initializing TSN with base model: {}.
@@ -63,8 +64,26 @@ TSN Configurations:
             model.classifier[3] = nn.Linear(in_features=feature_dim, out_features=num_class, bias=True)
             normal_(model.classifier[3].weight, 0, std)
             constant_(model.classifier[3].bias, 0)
-        
+
         self.backbone = model
+
+    def train(self, mode=True):
+        """
+        Override the default train() to freeze the BN parameters
+        :return:
+        """
+        super(TSN, self).train(mode)
+        count = 0
+        if self.partial_bn:
+            print("Freezing BatchNorm2D except the first one.")
+            for m in self.backbone.modules():
+                if isinstance(m, nn.BatchNorm2d):
+                    count += 1
+                    if count >= (2 if self._enable_pbn else 1):
+                        m.eval()
+                        # shutdown update in frozen mode
+                        m.weight.requires_grad = False
+                        m.bias.requires_grad = False
 
     def get_optim_policies(self):
         first_conv_weight = []
@@ -98,7 +117,8 @@ TSN Configurations:
             elif isinstance(m, nn.BatchNorm2d):
                 bn_cnt += 1
                 # later BN's are frozen
-                bn.extend(list(m.parameters()))
+                if not self.partial_bn or bn_cnt == 1:
+                    bn.extend(list(m.parameters()))
             elif len(m._modules) == 0:
                 if len(list(m.parameters())) > 0:
                     raise ValueError("New atomic module type: {}. Need to give it a learning policy".format(type(m)))
@@ -117,7 +137,7 @@ TSN Configurations:
         ]
 
     def forward(self, image):
-        # input: Tensor [N, TxC, H, W] (L=1 for depth)
+        # input: Tensor [N, TxCxL, H, W] (L=1)
         num_channels = 3
 
         # input.view(...) [NxT, C, H, W]

@@ -28,3 +28,4 @@ lr: 0.001
 lr_steps: [20, 40]
 momentum: 0.9
 weight_decay: 5.0e-4
+partial_bn: True

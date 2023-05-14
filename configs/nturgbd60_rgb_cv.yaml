@@ -18,6 +18,12 @@ seed: 42
 backbone: "resnet50"
 num_segments: 3
 
+# model
+backbone: "resnet50"
+num_segments: 3
+frame_per_seg: 5
+margin: 3
+
 # optimization
 epochs: 45
 batch_size: 128
@@ -26,4 +32,4 @@ lr: 0.001
 lr_steps: [20, 40]
 momentum: 0.9
 weight_decay: 5.0e-4
-partialbn: True
+partial_bn: True

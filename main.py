@@ -28,7 +28,7 @@ def main(args, wandb_logger):
 
     # init model
     model = TSN(num_class, args.num_segments, args.modality, frame_per_seg=args.frame_per_seg,
-                backbone=args.backbone, dropout=args.dropout)
+                backbone=args.backbone, dropout=args.dropout, partial_bn=args.partial_bn)
     policies = model.get_optim_policies()
     model = DataParallel(model, device_ids=[int(x) for x in args.gpus.split(',')]).cuda()
     cudnn.benchmark = True
