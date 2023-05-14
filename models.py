@@ -79,7 +79,7 @@ TSN Configurations:
             for m in self.backbone.modules():
                 if isinstance(m, nn.BatchNorm2d):
                     count += 1
-                    if count >= (2 if self._enable_pbn else 1):
+                    if count >= (2 if self.partial_bn else 1):
                         m.eval()
                         # shutdown update in frozen mode
                         m.weight.requires_grad = False

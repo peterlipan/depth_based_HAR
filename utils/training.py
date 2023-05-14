@@ -39,7 +39,6 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
     best_top1 = 0
     start = time.time()
     for epoch in range(args.epochs):
-        scheduler.step()
         for i, (img, target) in enumerate(train_loader):
             data_time.update(time.time() - start)
             img, target = img.cuda(), target.cuda()
@@ -85,7 +84,7 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
                                          'Sensitivity': test_sens,
                                          'Specificity': test_spec,
                                          "Precision": test_prec}})
-
+        scheduler.step()
         test_acc, test_f1, test_auc, test_bac, test_sens, test_spec, test_prec, test_loss = validate(test_loader, model, criterion)
         if logger is not None:
             logger.log({'Training': {'loss': losses.val,
