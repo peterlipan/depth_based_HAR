@@ -36,6 +36,7 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
     model.train()
     train_loader, test_loader = loaders
     cur_iter = 0
+    iters = len(train_loader)
     best_top1 = 0
     start = time.time()
     for epoch in range(args.epochs):
@@ -56,13 +57,15 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            # update the learning rate
+            scheduler.step(epoch + i / iters)
 
             batch_time.update(time.time() - start)
             start = time.time()
 
             cur_iter += 1
-            if cur_iter % 30 == 0:
-                base_lr = optimizer.param_groups[-1]["lr"]
+            if cur_iter % 100 == 0:
+                cur_lr = optimizer.param_groups[-1]["lr"]
                 print(('Epoch: [{0}][{1}/{2}], lr: {lr:.5f}\t'
                        'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                        'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
@@ -70,12 +73,13 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
                        'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                        'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                         epoch, i, len(train_loader), batch_time=batch_time,
-                        data_time=data_time, loss=losses, top1=top1, top5=top5, lr=base_lr)))
+                        data_time=data_time, loss=losses, top1=top1, top5=top5, lr=cur_lr)))
                 test_acc, test_f1, test_auc, test_bac, test_sens, test_spec, test_prec, test_loss = validate(test_loader, model, criterion)
                 if logger is not None:
                     logger.log({'Training': {'loss': losses.val,
                                              'Top-1 Accuracy': top1.val,
-                                             'Top-5 Accuracy': top5.val}})
+                                             'Top-5 Accuracy': top5.val,
+                                             'Learning rate': cur_lr}})
                     logger.log({'Test': {'loss': test_loss,
                                          'Accuracy': test_acc,
                                          'F1 score': test_f1,
@@ -84,7 +88,6 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
                                          'Sensitivity': test_sens,
                                          'Specificity': test_spec,
                                          "Precision": test_prec}})
-        scheduler.step()
         test_acc, test_f1, test_auc, test_bac, test_sens, test_spec, test_prec, test_loss = validate(test_loader, model, criterion)
         if logger is not None:
             logger.log({'Training': {'loss': losses.val,
