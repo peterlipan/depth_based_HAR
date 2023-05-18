@@ -9,6 +9,7 @@ from data import TSNDataSet, Transforms
 from utils import yaml_config_hook, train
 import numpy as np
 from torch.nn import DataParallel
+from torch.optim import lr_scheduler
 
 
 def main(args, wandb_logger):
@@ -47,7 +48,7 @@ def main(args, wandb_logger):
             group['name'], len(group['params']), group['lr_mult'], group['decay_mult'])))
 
     optimizer = torch.optim.SGD(policies, args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=0.1)
+    scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=args.t_0, T_mult=args.t_mult)
 
     train(loaders=dataloaders, model=model, criterion=criterion, optimizer=optimizer, scheduler=scheduler,
           logger=wandb_logger, args=args)
