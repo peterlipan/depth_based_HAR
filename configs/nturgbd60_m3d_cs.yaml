@@ -25,8 +25,8 @@ epochs: 60
 batch_size: 128
 dropout: 0.5
 lr: 0.01
-t_0: 10
-t_mult: 2
+lr_steps: [25, 40, 50]
+lr_decay: 0.1
 momentum: 0.9
 weight_decay: 5.0e-4
 partial_bn: True

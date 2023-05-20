@@ -57,8 +57,6 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            # update the learning rate
-            scheduler.step(epoch + i / iters)
 
             batch_time.update(time.time() - start)
             start = time.time()
@@ -88,6 +86,8 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
                                          'Sensitivity': test_sens,
                                          'Specificity': test_spec,
                                          "Precision": test_prec}})
+        # update the learning rate
+        scheduler.step()
         test_acc, test_f1, test_auc, test_bac, test_sens, test_spec, test_prec, test_loss = validate(test_loader, model, criterion)
         if logger is not None:
             logger.log({'Training': {'loss': losses.val,
