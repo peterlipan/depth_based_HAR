@@ -501,6 +501,7 @@ class Transforms:
             self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
                                                GroupRandomHorizontalFlip(prob=0.5),
                                                GroupRandomVerticalFlip(prob=0.5),
+                                               GroupRandomRotate(prob=0.5, degrees=30),
                                                GroupM3d(frame_per_seg=self.frame_per_seg),
                                                Stack(roll=False), ToTorchFormatTensor(div=255.)])
 
