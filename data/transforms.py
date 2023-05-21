@@ -448,9 +448,10 @@ class GroupM3d(object):
         for i in range(0, num_images, self.frame_per_seg):
             seg_images = [np.array(img.convert('L'), dtype=int) for img in img_group[i:i + self.frame_per_seg]]
             front_view = np.min(seg_images, axis=0)
+            diff = seg_images[-1] - seg_images[0]
             projection = np.mean(seg_images, axis=0)
             back_view = np.max(seg_images, axis=0)
-            m3d = np.stack([front_view, projection, back_view], axis=2)
+            m3d = np.stack([front_view, diff, back_view], axis=2)
             m3d_group.append(m3d)
 
         return m3d_group
