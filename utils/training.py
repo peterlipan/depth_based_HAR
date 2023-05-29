@@ -48,7 +48,7 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
     for epoch in range(args.epochs):
         for i, (img, hog_features, target) in enumerate(train_loader):
             data_time.update(time.time() - start)
-            img, hog_features, target = img.cuda(), hog_features.cuda(), target.cuda()
+            img, hog_features, target = img.cuda(), hog_features.cuda().float(), target.cuda()
 
             output, hog_predictions = model(img)
             hog_loss = hog_criterion(hog_predictions, hog_features)
