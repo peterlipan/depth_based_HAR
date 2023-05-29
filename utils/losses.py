@@ -10,5 +10,6 @@ class HogRegressionLoss(nn.Module):
     def forward(self, hog_preds, hog_features):
         assert hog_preds.size() == hog_features.size()
         hog_preds = self.softmax(hog_preds)
+        hog_features = self.softmax(hog_features)
 
         return self.criterion(hog_preds, hog_features)
