@@ -418,7 +418,7 @@ class Transforms:
         if not test_mode:
             image_augmented = self.train_transforms(images)
             # calculate the mean hog features of the augmented images
-            hog_features = [cal_hog_features(img, self.num_orientations) for img in image_augmented]
+            hog_features = [cal_hog_features(img, self.num_orientations, self.input_size) for img in image_augmented]
             hog_features = np.mean(hog_features, axis=0)
         else:
             image_augmented = self.test_transforms(images)
