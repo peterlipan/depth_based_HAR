@@ -422,7 +422,8 @@ class Transforms:
             hog_features = np.mean(hog_features, axis=0)
         else:
             image_augmented = self.test_transforms(images)
-            hog_features = None
+            # disable hog calculation at evaluation stage to save some time
+            hog_features = np.array([1])
 
         # post-transforms
         image_augmented = self.post_transforms(image_augmented)
