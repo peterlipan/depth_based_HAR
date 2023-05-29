@@ -14,9 +14,12 @@ class HogRegress(nn.Module):
     def __init__(self, in_features, num_orientations):
         super(HogRegress, self).__init__()
         self.linear1 = nn.Linear(in_features=in_features, out_features=in_features // 2)
+        self.relu = nn.ReLU(inplace=False)
         self.linear2 = nn.Linear(in_features=in_features // 2, out_features=num_orientations)
 
     def forward(self, x):
         x = self.linear1(x)
+        x = self.relu(x)
         x = self.linear2(x)
+        x = self.relu(x)
         return x
