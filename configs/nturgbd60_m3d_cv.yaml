@@ -31,3 +31,4 @@ lr_decay: 0.1
 momentum: 0.9
 weight_decay: 5.0e-4
 partial_bn: True
+hog_weight: 1.0e-3

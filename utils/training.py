@@ -53,7 +53,7 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
             output, hog_predictions = model(img)
             hog_loss = hog_criterion(hog_predictions, hog_features)
             cls_loss = criterion(output, target)
-            loss = hog_loss + cls_loss
+            loss = args.hog_weight * hog_loss + cls_loss
 
             # measure accuracy and record loss
             prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
