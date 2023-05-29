@@ -10,7 +10,7 @@ def cal_hog_features(image, num_orientations, img_size):
     hog_features = hog(image, orientations=num_orientations, pixels_per_cell=(img_size, img_size),
                        cells_per_block=(1, 1), visualize=False, feature_vector=False, channel_axis=-1)
 
-    hog_features = hog_features.reshape(-1).sum(axis=0)
+    hog_features = hog_features.reshape(-1, num_orientations).sum(axis=0)
 
     # in case of all-black image
     if np.sum(hog_features) == 0:
