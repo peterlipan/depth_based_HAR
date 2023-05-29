@@ -79,8 +79,6 @@ TSN Configurations:
         self.encoder = model
         self.classifier = classifier
         self.hog_decoder = HogRegress(in_features=feature_dim, num_orientations=self.num_orientations)
-        normal_(self.hog_decoder.weight, 0, std)
-        constant_(self.hog_decoder.bias, 0)
 
     def train(self, mode=True):
         """
