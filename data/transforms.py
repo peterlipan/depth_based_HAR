@@ -417,12 +417,12 @@ class Transforms:
         # image augmentation
         if not test_mode:
             image_augmented = self.train_transforms(images)
+            # calculate the mean hog features of the augmented images
+            hog_features = [cal_hog_features(img, self.num_orientations) for img in image_augmented]
+            hog_features = np.mean(hog_features, axis=0)
         else:
             image_augmented = self.test_transforms(images)
-
-        # calculate the mean hog features of the augmented images
-        hog_features = [cal_hog_features(img, self.num_orientations) for img in image_augmented]
-        hog_features = np.mean(hog_features, axis=0)
+            hog_features = None
 
         # post-transforms
         image_augmented = self.post_transforms(image_augmented)
