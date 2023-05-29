@@ -17,16 +17,16 @@ def main(args, wandb_logger):
     # define dataset
     transforms = Transforms(modality=args.modality, input_size=args.img_size,
                             frame_per_seg=args.frame_per_seg, num_orientations=args.num_orientations)
-    
+
     train_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_train,
                                num_segments=args.num_segments, frame_per_seg=args.frame_per_seg, 
                                margin=args.margin, modality=args.modality, image_tmpl=args.image_tmpl,
-                               transform=transforms.train_transforms, test_mode=False)
+                               transform=transforms, test_mode=False)
 
     test_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_test,
                               num_segments=args.num_segments, frame_per_seg=args.frame_per_seg,
                               margin=args.margin, modality=args.modality, image_tmpl=args.image_tmpl,
-                              transform=transforms.test_transforms, test_mode=True)
+                              transform=transforms, test_mode=True)
     num_class = train_dataset.num_class
 
     # init model
