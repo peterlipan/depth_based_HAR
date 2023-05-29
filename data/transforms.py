@@ -4,7 +4,8 @@ import numpy as np
 import numbers
 import math
 import torch
-from PIL import Image, ImageOps, ImageChops
+from PIL import Image, ImageOps
+from utils import cal_hog_features
 import torchvision.transforms as T
 
 
@@ -339,86 +340,6 @@ class ToTorchFormatTensor(object):
         return img.float().div(self.div) if self.div else img.float()
 
 
-class IdentityTransform(object):
-
-    def __call__(self, data):
-        return data
-
-
-class GroupImageDiff(object):
-    """
-    Calculates pixel-wise difference between consecutive frames in a given PIL.Image group,
-    except for the last one.
-    """
-
-    def __init__(self, frame_per_seg, absolute=False):
-        """
-        Args:
-            frame_per_seg (int): number of images in each segmentation
-        """
-        self.frame_per_seg = frame_per_seg
-        self.absolute = absolute
-
-    def __call__(self, img_group):
-        """
-        Args:
-            img_group (list): list of PIL.Image objects.
-
-        Returns:
-            list: list of PIL.Image objects, with pixel-wise differences between
-            consecutive frames in each segmentation.
-        """
-        num_images = len(img_group)
-        assert num_images % self.frame_per_seg == 0, f"Expected number of images to be divisible by {self.frame_per_seg}"
-
-        diff_group = []
-        for i in range(0, num_images, self.frame_per_seg):
-            seg_images = [np.array(img, dtype=int) for img in img_group[i:i + self.frame_per_seg]]
-
-            # Calculate pixel-wise difference between consecutive frames in the segmentation
-            for j in range(1, self.frame_per_seg):
-                if self.absolute:
-                    diff = np.abs(seg_images[j] - seg_images[j - 1])
-                else:
-                    diff = seg_images[j] - seg_images[j - 1]
-                diff_group.append(diff)
-
-        return diff_group
-
-
-class GroupImageGradient(object):
-    """
-    Calculates the spectrum of gradient for a list of PIL.Image objects.
-    """
-    @staticmethod
-    def _cal_gradient_mag(img):
-        # calculate the normalized spectrum of the gradient of the image
-        grad_x = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=3)
-        grad_y = cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize=3)
-        grad_mag = np.sqrt(grad_x ** 2 + grad_y ** 2)
-        if np.max(grad_mag) != np.min(grad_mag):
-            grad_mag_norm = (grad_mag - np.min(grad_mag)) / (np.max(grad_mag) - np.min(grad_mag))
-        elif np.max(grad_mag) != 0:
-            grad_mag_norm = grad_mag / np.max(grad_mag)
-        else:
-            grad_mag_norm = grad_mag
-
-        return grad_mag_norm
-
-    def __call__(self, img_group):
-        """
-        Args:
-            img_group (list): list of PIL.Image objects.
-
-        Returns:
-            list: list of PIL.Image objects, with each image showing the
-                  magnitude of gradient for the corresponding image in img_list.
-        """
-        array_list = [np.array(img) for img in img_group]
-
-        return [self._cal_gradient_mag(img) for img in array_list]
-
-
 class GroupM3d(object):
     """
     projections of 3dv
@@ -458,10 +379,11 @@ class GroupM3d(object):
 
 
 class Transforms:
-    def __init__(self, modality, input_size, frame_per_seg):
+    def __init__(self, modality, input_size, frame_per_seg, num_orientations):
         self.modality = modality
         self.input_size = input_size
         self.frame_per_seg = frame_per_seg
+        self.num_orientations = num_orientations
 
         scale_size = 256
 
@@ -477,38 +399,35 @@ class Transforms:
                                                GroupRandomHorizontalFlip(prob=0.5),
                                                GroupRandomVerticalFlip(prob=0.5),
                                                Stack(roll=False), ToTorchFormatTensor(div=255.), normalize])
-        elif modality == 'depthDiff':
-            self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
-                                               GroupRandomHorizontalFlip(prob=0.5),
-                                               GroupRandomVerticalFlip(prob=0.5),
-                                               GroupImageDiff(frame_per_seg=self.frame_per_seg),
-                                               Stack(roll=False), ToTorchFormatTensor(div=255.)])
-
-            self.test_transforms = T.Compose([GroupScale(scale_size), GroupCenterCrop(input_size),
-                                              GroupImageDiff(frame_per_seg=self.frame_per_seg),
-                                              Stack(roll=False), ToTorchFormatTensor(div=255.)])
-        elif modality == 'depthGrad':
-            self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
-                                               GroupRandomHorizontalFlip(prob=0.5),
-                                               GroupRandomVerticalFlip(prob=0.5),
-                                               GroupImageGradient(),
-                                               Stack(roll=False), ToTorchFormatTensor(div=255.)])
-
-            self.test_transforms = T.Compose([GroupScale(scale_size), GroupCenterCrop(input_size),
-                                              GroupImageGradient(),
-                                              Stack(roll=False), ToTorchFormatTensor(div=255.)])
 
         elif modality == 'm3d':
             self.train_transforms = T.Compose([GroupMultiScaleCrop(input_size, [1, .875, .75, .66]),
                                                GroupRandomHorizontalFlip(prob=0.5),
                                                GroupRandomVerticalFlip(prob=0.5),
                                                GroupRandomRotate(prob=0.5, degrees=30),
-                                               GroupM3d(frame_per_seg=self.frame_per_seg),
-                                               Stack(roll=False), ToTorchFormatTensor(div=255.)])
+                                               ])
 
             self.test_transforms = T.Compose([GroupScale(scale_size), GroupCenterCrop(input_size),
-                                              GroupM3d(frame_per_seg=self.frame_per_seg),
+                                              ])
+
+            self.post_transforms = T.Compose([GroupM3d(frame_per_seg=self.frame_per_seg),
                                               Stack(roll=False), ToTorchFormatTensor(div=255.)])
+
+    def transform_with_hog(self, images, test_mode=False):
+        # image augmentation
+        if not test_mode:
+            image_augmented = self.train_transforms(images)
+        else:
+            image_augmented = self.test_transforms(images)
+
+        # calculate the mean hog features of the augmented images
+        hog_features = [cal_hog_features(img, self.num_orientations) for img in image_augmented]
+        hog_features = np.mean(hog_features, axis=0)
+
+        # post-transforms
+        image_augmented = self.post_transforms(image_augmented)
+
+        return image_augmented, hog_features
 
 
 if __name__ == "__main__":

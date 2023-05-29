@@ -70,9 +70,9 @@ class TSNDataSet(data.Dataset):
     def get(self, record, indices):
 
         images = [self._load_image(record.path, p) for p in indices]
-        img_augmented = self.transform(images)
+        img_augmented, hog_features = self.transform.transform_with_hog(images, test_mode=self.test_mode)
 
-        return img_augmented, record.label
+        return img_augmented, hog_features, record.label
 
     def __len__(self):
         return len(self.video_list)

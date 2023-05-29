@@ -4,6 +4,7 @@ import shutil
 import torch
 import numpy as np
 from .metrics import accuracy, validate, AverageMeter
+from utils import HogRegressionLoss
 
 
 def adjust_learning_rate(optimizer, epoch, args):
@@ -27,10 +28,15 @@ def save_checkpoint(state, epoch, is_best, args):
 
 def train(loaders, model, criterion, optimizer, scheduler, logger, args):
     losses = AverageMeter()
+    hog_losses = AverageMeter()
+    cls_losses = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
     batch_time = AverageMeter()
     data_time = AverageMeter()
+
+    # HOG loss function
+    hog_criterion = HogRegressionLoss()
 
     # switch to train mode
     model.train()
@@ -40,16 +46,20 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
     best_top1 = 0
     start = time.time()
     for epoch in range(args.epochs):
-        for i, (img, target) in enumerate(train_loader):
+        for i, (img, hog_features, target) in enumerate(train_loader):
             data_time.update(time.time() - start)
-            img, target = img.cuda(), target.cuda()
+            img, hog_features, target = img.cuda(), hog_features.cuda(), target.cuda()
 
-            output = model(img)
-            loss = criterion(output, target)
+            output, hog_predictions = model(img)
+            hog_loss = hog_criterion(hog_predictions, hog_features)
+            cls_loss = criterion(output, target)
+            loss = hog_loss + cls_loss
 
             # measure accuracy and record loss
             prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
             losses.update(loss.item(), img.size(0))
+            hog_losses.update(hog_loss.item(), img.size(0))
+            cls_losses.update(cls_loss.item(), img.size(0))
             top1.update(prec1.item(), img.size(0))
             top5.update(prec5.item(), img.size(0))
 
@@ -62,7 +72,7 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
             start = time.time()
 
             cur_iter += 1
-            if cur_iter % 100 == 0:
+            if cur_iter % 150 == 0:
                 cur_lr = optimizer.param_groups[-1]["lr"]
                 print(('Epoch: [{0}][{1}/{2}], lr: {lr:.5f}\t'
                        'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -76,6 +86,8 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
                 if logger is not None:
                     logger.log({'Training': {'loss': losses.val,
                                              'Top-1 Accuracy': top1.val,
+                                             'HOG loss': hog_losses.val,
+                                             'Classification loss': cls_losses.val,
                                              'Top-5 Accuracy': top5.val,
                                              'Learning rate': cur_lr}})
                     logger.log({'Test': {'loss': test_loss,

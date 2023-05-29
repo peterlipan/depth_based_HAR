@@ -71,11 +71,11 @@ def validate(loader, model, criterion):
     logits = torch.Tensor().cuda()
 
     with torch.no_grad():
-        for i, (img, target) in enumerate(loader):
+        for i, (img, _, target) in enumerate(loader):
             img, target = img.cuda(), target.cuda()
 
             # compute output
-            output = model(img)
+            output, _ = model(img)
             loss = criterion(output, target)
             output = F.softmax(output, dim=1)
 

@@ -15,7 +15,9 @@ from torch.optim import lr_scheduler
 def main(args, wandb_logger):
 
     # define dataset
-    transforms = Transforms(args.modality, args.img_size, args.frame_per_seg)
+    transforms = Transforms(modality=args.modality, input_size=args.img_size,
+                            frame_per_seg=args.frame_per_seg, num_orientations=args.num_orientations)
+    
     train_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_train,
                                num_segments=args.num_segments, frame_per_seg=args.frame_per_seg, 
                                margin=args.margin, modality=args.modality, image_tmpl=args.image_tmpl,

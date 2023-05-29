@@ -3,11 +3,12 @@ from torch import nn
 import torchvision
 from ops.basic_ops import AvgConsensus
 from torch.nn.init import normal_, constant_
+from .classifier import Identity, HogRegress
 
 
 class TSN(nn.Module):
     def __init__(self, num_class, num_segments, modality,
-                 backbone='resnet50', frame_per_seg=None,
+                 backbone='resnet50', frame_per_seg=None, num_orientations=64,
                  dropout=0.8, partial_bn=True):
         super(TSN, self).__init__()
         self.modality = modality
@@ -16,6 +17,7 @@ class TSN(nn.Module):
         self.num_class = num_class
         self.frame_per_seg = frame_per_seg
         self.partial_bn = partial_bn
+        self.num_orientations = num_orientations
 
         print(("""
 Initializing TSN with base model: {}.
@@ -36,36 +38,47 @@ TSN Configurations:
                   'shufflenet_v2_x1_5', 'mobilenet_v3_large']
         assert backbone in models
         model = getattr(torchvision.models, backbone)(pretrained=True)
+        classifier = None
         std = 0.001
 
         # Reset the last linear layer and dropout
         if 'shufflenet' in backbone or 'resnet' in backbone:
             feature_dim = model.fc.in_features
             if self.dropout == 0:
-                model.fc = nn.Linear(in_features=feature_dim, out_features=num_class, bias=True)
-                normal_(model.fc.weight, 0, std)
-                constant_(model.fc.bias, 0)
+                classifier = nn.Linear(in_features=feature_dim, out_features=num_class, bias=True)
+                normal_(classifier.weight, 0, std)
+                constant_(classifier.bias, 0)
             else:
-                model.fc = nn.Sequential(nn.Dropout(p=self.dropout, inplace=False),
-                                         nn.Linear(in_features=feature_dim, out_features=num_class, bias=True))
-                normal_(model.fc[1].weight, 0, std)
-                constant_(model.fc[1].bias, 0)
+                classifier = nn.Sequential(nn.Dropout(p=self.dropout, inplace=False),
+                                           nn.Linear(in_features=feature_dim, out_features=num_class, bias=True))
+                normal_(classifier[1].weight, 0, std)
+                constant_(classifier[1].bias, 0)
+
+            # split the encoder and classifier
+            model.fc = Identity()
 
         elif 'mobilenet_v2' in backbone:
             feature_dim = model.classifier[1].in_features
-            model.classifier = nn.Sequential(nn.Dropout(p=self.dropout, inplace=False),
-                                             nn.Linear(in_features=feature_dim, out_features=num_class, bias=True))
-            normal_(model.classifier[1].weight, 0, std)
-            constant_(model.classifier[1].bias, 0)
+            classifier = nn.Sequential(nn.Dropout(p=self.dropout, inplace=False),
+                                       nn.Linear(in_features=feature_dim, out_features=num_class, bias=True))
+            normal_(classifier[1].weight, 0, std)
+            constant_(classifier[1].bias, 0)
+            # split the encoder and classifier
+            model.classifier = Identity()
 
         elif 'mobilenet_v3' in backbone:
             feature_dim = model.classifier[3].in_features
-            model.classifier[2] = nn.Dropout(p=self.dropout, inplace=False)
-            model.classifier[3] = nn.Linear(in_features=feature_dim, out_features=num_class, bias=True)
-            normal_(model.classifier[3].weight, 0, std)
-            constant_(model.classifier[3].bias, 0)
+            classifier = model.classifier
+            classifier[2] = nn.Dropout(p=self.dropout, inplace=False)
+            classifier[3] = nn.Linear(in_features=feature_dim, out_features=num_class, bias=True)
+            normal_(classifier[3].weight, 0, std)
+            constant_(classifier[3].bias, 0)
+            # split the encoder and classifier
+            model.classifier = Identity()
 
-        self.backbone = model
+        self.encoder = model
+        self.classifier = classifier
+        self.hog_decoder = HogRegress(in_features=feature_dim, num_orientations=self.num_orientations)
 
     def train(self, mode=True):
         """
@@ -141,12 +154,23 @@ TSN Configurations:
         num_channels = 3
 
         # input.view(...) [NxT, C, H, W]
-        base_out = self.backbone(image.view((-1, num_channels) + image.size()[-2:]))
-        # base_out [NxT, K (num_class)]
+        spatial_features = self.encoder(image.view((-1, num_channels) + image.size()[-2:]))
 
-        base_out = base_out.view((-1, self.num_segments) + base_out.size()[1:])
-        # base_out after reshape [N, T, K (num_class)]
+        # HOG Regression
+        # spatial_features [NxT, F]; F = number of features before the final linear layer
+        hog = self.hog_decoder(spatial_features)
+        # hog [NxT, O] -> [N, T, O]; O = number of orientations
+        hog = hog.view(-1, self.num_segments, hog.size(-1))
+        hog = self.consensus(hog, dim=1)
+        # hog [N, O]
 
-        output = self.consensus(base_out, dim=1)
+        # spatial-level predictions
+        # spatial_logits [NxT, K (num_class)] -> [N, T, K]
+        spatial_logits = self.classifier(spatial_features)
+        spatial_logits = spatial_logits.view(-1, self.num_segments, spatial_logits.size(-1))
+
+        # aggregate spatial predictions to get temporal predictions
+        output = self.consensus(spatial_logits, dim=1)
         # output [N, K (num_class)]
-        return output
+
+        return output, hog
