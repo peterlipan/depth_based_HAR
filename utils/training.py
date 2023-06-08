@@ -118,7 +118,7 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
                                  "Precision": test_prec}})
         is_best = test_acc > best_top1
         best_top1 = max(best_top1, test_acc)
-        save_checkpoint(model.state_dict(), epoch, is_best, args)
+        save_checkpoint(model.module.state_dict(), epoch, is_best, args)
 
 
 def test_time_training(dataloader, model, criterion, optimizer, logger, args):

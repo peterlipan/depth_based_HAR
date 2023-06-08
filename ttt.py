@@ -32,7 +32,7 @@ def main(args, wandb_logger):
     # load model weights
     best_file = os.path.join(args.checkpoints, 'best_{:s}_{:s}.pth'.format(args.dataset, args.modality))
     checkpoint = torch.load(best_file)
-    model.load_state_dict(checkpoint)
+    model.load_state_dict(checkpoint, strict=False)
 
     model = DataParallel(model, device_ids=[int(x) for x in args.gpus.split(',')]).cuda()
     cudnn.benchmark = True
