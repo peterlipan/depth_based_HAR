@@ -161,6 +161,12 @@ def test_time_training(dataloader, model, criterion, optimizer, logger, args):
             all_logits = torch.cat((all_logits, logits))
             all_targets = torch.cat((all_targets, target))
 
+            print(('Image: [{0}/{1}]\t'
+                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                   'Prec@1 {top1.avg:.3f}\t'
+                   'Prec@5 {top5.avg:.3f}'.format(
+                    i, len(dataloader), loss=cls_losses, top1=top1, top5=top5)))
+
         if logger is not None:
             logger.log({'TTT': {'Top-1 Accuracy': top1.avg,
                                      'HOG loss': hog_losses.avg,
