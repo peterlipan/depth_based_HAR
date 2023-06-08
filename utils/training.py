@@ -1,5 +1,6 @@
 import os
 import time
+import copy
 import shutil
 import torch
 import numpy as np
@@ -135,10 +136,11 @@ def test_time_training(dataloader, model, criterion, optimizer, logger, args):
 
     for i, (img, hog_features, target) in enumerate(dataloader):
         # training
-        model.train()
+        sample_model = copy.deepcopy(model).cuda()
+        sample_model.train()
         img, hog_features, target = img.cuda(), hog_features.cuda().float(), target.cuda()
         for _ in range(args.steps_per_sample):
-            _, hog_predictions = model(img)
+            _, hog_predictions = sample_model(img)
             hog_loss = hog_criterion(hog_predictions, hog_features)
             hog_losses.update(hog_loss.item(), img.size(0))
 
@@ -148,8 +150,8 @@ def test_time_training(dataloader, model, criterion, optimizer, logger, args):
 
         # test
         with torch.no_grad():
-            model.eval()
-            output, _ = model(img)
+            sample_model.eval()
+            output, _ = sample_model(img)
             logits = F.softmax(output, dim=1)
 
             prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
@@ -160,12 +162,13 @@ def test_time_training(dataloader, model, criterion, optimizer, logger, args):
             top5.update(prec5.item(), img.size(0))
             all_logits = torch.cat((all_logits, logits))
             all_targets = torch.cat((all_targets, target))
+            del sample_model
 
-            print(('Image: [{0}/{1}]\t'
+            print(('\rImage: [{0}/{1}]\t'
                    'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                    'Prec@1 {top1.avg:.3f}\t'
                    'Prec@5 {top5.avg:.3f}'.format(
-                    i, len(dataloader), loss=cls_losses, top1=top1, top5=top5)))
+                    i, len(dataloader), loss=cls_losses, top1=top1, top5=top5)), flush=True, end='')
 
         if logger is not None:
             logger.log({'TTT': {'Top-1 Accuracy': top1.avg,

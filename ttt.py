@@ -32,9 +32,10 @@ def main(args, wandb_logger):
     # load model weights
     best_file = os.path.join(args.checkpoints, 'best_{:s}_{:s}.pth'.format(args.dataset, args.modality))
     checkpoint = torch.load(best_file)
-    model.load_state_dict(checkpoint, strict=False)
 
-    model = DataParallel(model, device_ids=[int(x) for x in args.gpus.split(',')]).cuda()
+    model = DataParallel(model, device_ids=[0]).cuda()
+    model.load_state_dict(checkpoint)
+
     cudnn.benchmark = True
 
     # Dataloaders
@@ -43,8 +44,7 @@ def main(args, wandb_logger):
 
     criterion = torch.nn.CrossEntropyLoss().cuda()
 
-    optimizer = torch.optim.SGD(model.module.encoder.parameters(), args.ttt_lr,
-                                momentum=args.momentum, weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam(model.module.encoder.parameters(), args.ttt_lr)
 
     test_time_training(dataloader=test_loader, model=model, criterion=criterion, optimizer=optimizer,
                        logger=wandb_logger, args=args)

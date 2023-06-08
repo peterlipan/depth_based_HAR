@@ -88,7 +88,6 @@ TSN Configurations:
         super(TSN, self).train(mode)
         count = 0
         if self.partial_bn:
-            print("Freezing BatchNorm2D except the first one.")
             for m in self.encoder.modules():
                 if isinstance(m, nn.BatchNorm2d):
                     count += 1
