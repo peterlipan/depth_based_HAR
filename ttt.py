@@ -43,7 +43,7 @@ def main(args, wandb_logger):
 
     criterion = torch.nn.CrossEntropyLoss().cuda()
 
-    optimizer = torch.optim.SGD(model.module.encoder.parameters, args.ttt_lr,
+    optimizer = torch.optim.SGD(model.module.encoder.parameters(), args.ttt_lr,
                                 momentum=args.momentum, weight_decay=args.weight_decay)
 
     test_time_training(dataloader=test_loader, model=model, criterion=criterion, optimizer=optimizer,
