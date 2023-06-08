@@ -21,6 +21,10 @@ frame_per_seg: 5
 margin: 3
 num_orientations: 96
 
+# ttt
+steps_per_sample: 1
+ttt_lr: 1.0e-5
+
 # optimization
 epochs: 60
 batch_size: 128

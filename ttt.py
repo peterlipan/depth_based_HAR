@@ -6,10 +6,9 @@ from models import TSN
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from data import TSNDataSet, Transforms
-from utils import yaml_config_hook, train
+from utils import yaml_config_hook, test_time_training
 import numpy as np
 from torch.nn import DataParallel
-from torch.optim import lr_scheduler
 
 
 def main(args, wandb_logger):
@@ -18,43 +17,37 @@ def main(args, wandb_logger):
     transforms = Transforms(modality=args.modality, input_size=args.img_size,
                             frame_per_seg=args.frame_per_seg, num_orientations=args.num_orientations)
 
-    train_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_train,
-                               num_segments=args.num_segments, frame_per_seg=args.frame_per_seg, 
-                               margin=args.margin, modality=args.modality, image_tmpl=args.image_tmpl,
-                               transform=transforms, test_mode=False, hog=True)
-
     test_dataset = TSNDataSet(data_path=args.data_path, csv_path=args.csv_file_test,
                               num_segments=args.num_segments, frame_per_seg=args.frame_per_seg,
                               margin=args.margin, modality=args.modality, image_tmpl=args.image_tmpl,
-                              transform=transforms, test_mode=True, hog=False)
-    num_class = train_dataset.num_class
+                              transform=transforms, test_mode=True, hog=True)
+
+    num_class = test_dataset.num_class
 
     # init model
-    model = TSN(num_class, args.num_segments, args.modality, frame_per_seg=args.frame_per_seg, 
-                num_orientations=args.num_orientations, backbone=args.backbone, dropout=args.dropout, 
+    model = TSN(num_class, args.num_segments, args.modality, frame_per_seg=args.frame_per_seg,
+                num_orientations=args.num_orientations, backbone=args.backbone, dropout=args.dropout,
                 partial_bn=args.partial_bn)
-    policies = model.get_optim_policies()
+
+    # load model weights
+    best_file = os.path.join(args.checkpoints, 'best_{:s}_{:s}.pth'.format(args.dataset, args.modality))
+    checkpoint = torch.load(best_file)
+    model.load_state_dict(checkpoint)
+
     model = DataParallel(model, device_ids=[int(x) for x in args.gpus.split(',')]).cuda()
     cudnn.benchmark = True
 
     # Dataloaders
-    train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True,
-                              num_workers=args.workers, pin_memory=True, drop_last=True)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False,
                              num_workers=args.workers, pin_memory=True, drop_last=True)
-    dataloaders = (train_loader, test_loader)
 
     criterion = torch.nn.CrossEntropyLoss().cuda()
 
-    for group in policies:
-        print(('group: {} has {} params, lr_mult: {}, decay_mult: {}'.format(
-            group['name'], len(group['params']), group['lr_mult'], group['decay_mult'])))
+    optimizer = torch.optim.SGD(model.encoder.parameters, args.ttt_lr,
+                                momentum=args.momentum, weight_decay=args.weight_decay)
 
-    optimizer = torch.optim.SGD(policies, args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_decay)
-
-    train(loaders=dataloaders, model=model, criterion=criterion, optimizer=optimizer, scheduler=scheduler,
-          logger=wandb_logger, args=args)
+    test_time_training(dataloader=test_loader, model=model, criterion=criterion, optimizer=optimizer,
+                       logger=wandb_logger, args=args)
 
 
 if __name__ == '__main__':
@@ -88,8 +81,8 @@ if __name__ == '__main__':
             config[k] = v
 
         logger = wandb.init(
-            project="%s_%s_%s" % (args.dataset, args.modality, args.task),
-            notes="Sensys 2023 depth HAR",
+            project="%s_%s_%s_TTT" % (args.dataset, args.modality, args.task),
+            notes="MobiCom 2023 depth HAR",
             tags=["baseline", "Sensys2023", "depth camera", "human action recognition"],
             config=config
         )

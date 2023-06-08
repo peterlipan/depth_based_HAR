@@ -3,7 +3,8 @@ import time
 import shutil
 import torch
 import numpy as np
-from .metrics import accuracy, validate, AverageMeter
+import torch.nn.functional as F
+from .metrics import accuracy, validate, AverageMeter, compute_avg_metrics
 from utils import HogRegressionLoss
 
 
@@ -118,3 +119,60 @@ def train(loaders, model, criterion, optimizer, scheduler, logger, args):
         is_best = test_acc > best_top1
         best_top1 = max(best_top1, test_acc)
         save_checkpoint(model.state_dict(), epoch, is_best, args)
+
+
+def test_time_training(dataloader, model, criterion, optimizer, logger, args):
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+    hog_losses = AverageMeter()
+    cls_losses = AverageMeter()
+
+    all_logits = torch.Tensor().cuda()
+    all_targets = torch.Tensor().cuda()
+
+    # HOG loss function
+    hog_criterion = HogRegressionLoss()
+
+    for i, (img, hog_features, target) in enumerate(dataloader):
+        # training
+        model.train()
+        img, hog_features, target = img.cuda(), hog_features.cuda().float(), target.cuda()
+        for _ in range(args.steps_per_sample):
+            _, hog_predictions = model(img)
+            hog_loss = hog_criterion(hog_predictions, hog_features)
+            hog_losses.update(hog_loss.item(), img.size(0))
+
+            optimizer.zero_grad()
+            hog_loss.backward()
+            optimizer.step()
+
+        # test
+        with torch.no_grad():
+            model.eval()
+            output, _ = model(img)
+            logits = F.softmax(output, dim=1)
+
+            prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
+            loss = criterion(output, target)
+
+            cls_losses.update(loss.item(), img.size(0))
+            top1.update(prec1.item(), img.size(0))
+            top5.update(prec5.item(), img.size(0))
+            all_logits = torch.cat((all_logits, logits))
+            all_targets = torch.cat((all_targets, target))
+
+        if logger is not None:
+            logger.log({'TTT': {'Top-1 Accuracy': top1.val,
+                                     'HOG loss': hog_losses.val,
+                                     'Classification loss': cls_losses.val,
+                                     'Top-5 Accuracy': top5.val}})
+
+    acc, f1, auc, bac, sens, spec, prec = compute_avg_metrics(all_targets, all_logits)
+    if logger is not None:
+        logger.log({'Overall': {'Accuracy': acc,
+                                 'F1 score': f1,
+                                 'AUC': auc,
+                                 'BAC': bac,
+                                 'Sensitivity': sens,
+                                 'Specificity': spec,
+                                 "Precision": prec}})

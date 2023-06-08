@@ -413,16 +413,17 @@ class Transforms:
             self.post_transforms = T.Compose([GroupM3d(frame_per_seg=self.frame_per_seg),
                                               Stack(roll=False), ToTorchFormatTensor(div=255.)])
 
-    def transform_with_hog(self, images, test_mode=False):
+    def transform_with_hog(self, images, test_mode=False, hog=False):
         # image augmentation
         if not test_mode:
             image_augmented = self.train_transforms(images)
-            # calculate the mean hog features of the augmented images
+        else:
+            image_augmented = self.test_transforms(images)
+
+        if hog:
             hog_features = [cal_hog_features(img, self.num_orientations, self.input_size) for img in image_augmented]
             hog_features = np.mean(hog_features, axis=0)
         else:
-            image_augmented = self.test_transforms(images)
-            # disable hog calculation at evaluation stage to save some time
             hog_features = np.array([1])
 
         # post-transforms

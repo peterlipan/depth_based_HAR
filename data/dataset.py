@@ -30,7 +30,7 @@ class TSNDataSet(data.Dataset):
     def __init__(self, data_path, csv_path,
                  num_segments=3, frame_per_seg=1, margin=3,modality='depth',
                  image_tmpl='MDepth-{:08d}.ppm', transform=None,
-                 test_mode=False, start_index=1):
+                 test_mode=False, hog=False, start_index=1):
 
         self.data_path = data_path
         self.csv = pd.read_csv(csv_path)
@@ -41,6 +41,7 @@ class TSNDataSet(data.Dataset):
         self.image_tmpl = image_tmpl
         self.transform = transform
         self.test_mode = test_mode
+        self.hog = hog
         self.num_class = len(set(self.csv['action_id']))
 
         self.sampler = HierarchySample(frame_per_seg=self.frame_per_seg, num_segments=num_segments,
@@ -70,7 +71,7 @@ class TSNDataSet(data.Dataset):
     def get(self, record, indices):
 
         images = [self._load_image(record.path, p) for p in indices]
-        img_augmented, hog_features = self.transform.transform_with_hog(images, test_mode=self.test_mode)
+        img_augmented, hog_features = self.transform.transform_with_hog(images, test_mode=self.test_mode, hog=self.hog)
 
         return img_augmented, hog_features, record.label
 
