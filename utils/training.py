@@ -162,10 +162,10 @@ def test_time_training(dataloader, model, criterion, optimizer, logger, args):
             all_targets = torch.cat((all_targets, target))
 
         if logger is not None:
-            logger.log({'TTT': {'Top-1 Accuracy': top1.val,
-                                     'HOG loss': hog_losses.val,
-                                     'Classification loss': cls_losses.val,
-                                     'Top-5 Accuracy': top5.val}})
+            logger.log({'TTT': {'Top-1 Accuracy': top1.avg,
+                                     'HOG loss': hog_losses.avg,
+                                     'Classification loss': cls_losses.avg,
+                                     'Top-5 Accuracy': top5.avg}})
 
     acc, f1, auc, bac, sens, spec, prec = compute_avg_metrics(all_targets, all_logits)
     if logger is not None:
