@@ -142,7 +142,6 @@ def test_time_training(dataloader, model, criterion, optimizer, logger, args):
         for _ in range(args.steps_per_sample):
             _, hog_predictions = sample_model(img)
             hog_loss = hog_criterion(hog_predictions, hog_features)
-            hog_losses.update(hog_loss.item(), img.size(0))
 
             optimizer.zero_grad()
             hog_loss.backward()
@@ -156,7 +155,8 @@ def test_time_training(dataloader, model, criterion, optimizer, logger, args):
 
             prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
             loss = criterion(output, target)
-
+            
+            hog_losses.update(hog_loss.item(), img.size(0))
             cls_losses.update(loss.item(), img.size(0))
             top1.update(prec1.item(), img.size(0))
             top5.update(prec5.item(), img.size(0))

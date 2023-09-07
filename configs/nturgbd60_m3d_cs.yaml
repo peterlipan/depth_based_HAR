@@ -22,7 +22,7 @@ margin: 3
 num_orientations: 96
 
 # ttt
-steps_per_sample: 1
+steps_per_sample: 10
 ttt_lr: 1.0e-5
 
 # optimization

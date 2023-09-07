@@ -23,7 +23,7 @@ num_orientations: 96
 
 # ttt
 steps_per_sample: 1
-ttt_lr: 1.0e-5
+ttt_lr: 1.0e-2
 
 # optimization
 epochs: 60
